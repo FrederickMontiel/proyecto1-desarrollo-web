@@ -1,0 +1,100 @@
+name: CI
+
+# Se ejecuta en cada empujón y en cada solicitud de incorporación: el objetivo es que
+# nunca llegue a la rama principal algo que no compile o que rompa las pruebas.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+# Un empujón nuevo cancela la ejecución anterior de la misma rama: no tiene sentido
+# gastar minutos validando un commit que ya quedó atrás.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  backend:
+    name: Backend · compilar y probar
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restaurar dependencias
+        working-directory: backend
+        run: dotnet restore SWMatrc.slnx
+
+      # Las advertencias se tratan como errores: es la forma de que no se acumulen.
+      - name: Compilar
+        working-directory: backend
+        run: dotnet build SWMatrc.slnx --configuration Release --no-restore --warnaserror
+
+      - name: Ejecutar pruebas
+        working-directory: backend
+        run: dotnet test SWMatrc.slnx --configuration Release --no-build --verbosity normal
+
+  frontend:
+    name: Frontend · compilar
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # npm ci respeta el lockfile al pie de la letra: se valida exactamente el mismo
+      # árbol de dependencias que se despliega.
+      - name: Instalar dependencias
+        working-directory: frontend
+        run: npm ci
+
+      - name: Compilar
+        working-directory: frontend
+        run: npm run build
+
+  contenedores:
+    name: Docker · construir imágenes
+    runs-on: ubuntu-latest
+    # Solo tiene sentido si el código ya compila por separado.
+    needs: [backend, frontend]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Imagen de la API
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Imagen de la aplicación web
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Comprueba que docker-compose.yml es válido y que las variables se resuelven.
+      - name: Validar docker-compose
+        run: |
+          cp .env.example .env
+          docker compose config --quiet

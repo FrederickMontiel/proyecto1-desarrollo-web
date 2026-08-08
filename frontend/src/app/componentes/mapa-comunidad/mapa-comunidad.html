@@ -1,0 +1,83 @@
+<div class="mapa">
+  <svg
+    viewBox="0 0 100 100"
+    preserveAspectRatio="xMidYMid meet"
+    class="mapa__lienzo"
+    role="img"
+    [attr.aria-label]="'Croquis de sensores de ' + (comunidad()?.nombre ?? 'la comunidad')">
+
+    <defs>
+      <pattern id="cuadricula" width="10" height="10" patternUnits="userSpaceOnUse">
+        <path d="M 10 0 L 0 0 0 10" fill="none" stroke="var(--borde-suave)" stroke-width="0.3" />
+      </pattern>
+    </defs>
+
+    <rect width="100" height="100" fill="url(#cuadricula)" />
+
+    <!-- Cauce de referencia: orienta la lectura del croquis y recuerda que el riesgo de
+         inundación se concentra en las viviendas ribereñas. -->
+    <path
+      d="M -5 72 C 20 62, 35 84, 55 74 S 85 60, 105 68"
+      fill="none"
+      stroke="var(--primario)"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      opacity="0.28" />
+
+    <circle cx="50" cy="50" r="2.2" fill="var(--texto-tenue)" opacity="0.5" />
+    <text x="50" y="46" text-anchor="middle" font-size="3" fill="var(--texto-tenue)">
+      Casco urbano
+    </text>
+
+    @for (marcador of marcadores(); track marcador.sensor.id) {
+      <g class="marcador" [class.marcador--inactivo]="!marcador.activo">
+        <title>
+          {{ marcador.sensor.codigo }} — {{ marcador.sensor.nombre }}:
+          {{ marcador.sensor.valorActual }} {{ marcador.sensor.unidadMedida }}
+        </title>
+
+        <!-- Halo pulsante solo en emergencia: reservar la animación para el rojo hace
+             que llame la atención de verdad cuando aparece. -->
+        @if (marcador.sensor.nivelActual === 'Rojo' && marcador.activo) {
+          <circle
+            [attr.cx]="marcador.x"
+            [attr.cy]="marcador.y"
+            r="7"
+            [attr.fill]="marcador.color"
+            opacity="0.25"
+            class="marcador__halo" />
+        }
+
+        <circle
+          [attr.cx]="marcador.x"
+          [attr.cy]="marcador.y"
+          r="4.2"
+          [attr.fill]="marcador.color"
+          stroke="var(--superficie)"
+          stroke-width="1" />
+
+        <text
+          [attr.x]="marcador.x"
+          [attr.y]="marcador.y + 1.4"
+          text-anchor="middle"
+          font-size="3.6">{{ marcador.icono }}</text>
+
+        <text
+          [attr.x]="marcador.x"
+          [attr.y]="marcador.y + 8.5"
+          text-anchor="middle"
+          font-size="2.7"
+          fill="var(--texto-suave)">{{ marcador.sensor.codigo }}</text>
+      </g>
+    }
+  </svg>
+
+  <ul class="mapa__leyenda">
+    @for (entrada of leyenda; track entrada.nivel) {
+      <li>
+        <span class="punto" [style.background]="entrada.color"></span>
+        {{ entrada.etiqueta }}
+      </li>
+    }
+  </ul>
+</div>

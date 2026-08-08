@@ -1,0 +1,88 @@
+<div class="armazon" [class.armazon--menu-abierto]="menuAbierto()">
+
+  <header class="barra">
+    <button
+      class="boton boton--sm solo-movil"
+      type="button"
+      (click)="menuAbierto.set(!menuAbierto())"
+      [attr.aria-expanded]="menuAbierto()"
+      aria-label="Alternar menú de navegación">
+      ☰
+    </button>
+
+    <div class="marca">
+      <span class="marca__logo" aria-hidden="true">🌦️</span>
+      <div class="marca__texto">
+        <strong>SWMATRC</strong>
+        <span class="texto-tenue">Monitoreo y alerta temprana</span>
+      </div>
+    </div>
+
+    <div class="crecer"></div>
+
+    @if (estado.comunidades().length > 0) {
+      <label class="selector-comunidad">
+        <span class="visualmente-oculto">Comunidad monitoreada</span>
+        <select [value]="estado.comunidadActiva()?.id ?? ''" (change)="cambiarComunidad($event)">
+          @for (comunidad of estado.comunidades(); track comunidad.id) {
+            <option [value]="comunidad.id">{{ comunidad.nombre }}</option>
+          }
+        </select>
+      </label>
+    }
+
+    <!-- Estado del WebSocket: si el canal cae, el operador debe enterarse de inmediato,
+         porque a partir de ese momento el tablero muestra datos congelados. -->
+    <span
+      class="conexion"
+      [class.conexion--viva]="estado.estadoConexion() === 'conectado'"
+      [class.conexion--caida]="estado.estadoConexion() === 'desconectado'"
+      [title]="'Canal en tiempo real: ' + etiquetaConexion()">
+      <span class="conexion__punto" [class.pulso]="estado.estadoConexion() !== 'conectado'"></span>
+      {{ etiquetaConexion() }}
+    </span>
+
+    <button
+      class="boton boton--sm"
+      type="button"
+      (click)="notificaciones.alternarSonido()"
+      [attr.aria-pressed]="notificaciones.sonidoActivo()"
+      [title]="notificaciones.sonidoActivo() ? 'Silenciar alertas' : 'Activar sonido de alertas'">
+      {{ notificaciones.sonidoActivo() ? '🔔' : '🔕' }}
+    </button>
+
+    <button class="boton boton--sm" type="button" (click)="alternarTema()" title="Cambiar tema">
+      {{ tema() === 'oscuro' ? '☀️' : '🌙' }}
+    </button>
+
+    <div class="usuario">
+      <span class="usuario__nombre">{{ auth.usuario()?.nombreCompleto }}</span>
+      <span class="texto-tenue">{{ auth.usuario()?.rolNombre }}</span>
+    </div>
+
+    <button class="boton boton--sm" type="button" (click)="cerrarSesion()">Salir</button>
+  </header>
+
+  <nav class="navegacion" aria-label="Secciones del sistema">
+    @for (entrada of entradasVisibles; track entrada.ruta) {
+      <a
+        [routerLink]="entrada.ruta"
+        routerLinkActive="navegacion__enlace--activo"
+        class="navegacion__enlace"
+        (click)="menuAbierto.set(false)">
+        <span aria-hidden="true">{{ entrada.icono }}</span>
+        <span>{{ entrada.etiqueta }}</span>
+
+        @if (entrada.ruta === '/alertas' && estado.alertasSinReconocer().length > 0) {
+          <span class="navegacion__contador">{{ estado.alertasSinReconocer().length }}</span>
+        }
+      </a>
+    }
+  </nav>
+
+  <main class="contenido">
+    <router-outlet />
+  </main>
+
+  <app-avisos />
+</div>

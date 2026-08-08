@@ -1,0 +1,88 @@
+name: swmatrc
+
+# --------------------------------------------------------------------------------------
+# Sistema Web de Monitoreo y Alerta Temprana para Riesgos Climáticos
+#
+# Tres contenedores sobre una red interna: la base de datos no publica puerto hacia el
+# exterior en producción y solo la web queda expuesta. Los valores sensibles se leen del
+# archivo .env, que no se versiona.
+# --------------------------------------------------------------------------------------
+
+services:
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: swmatrc-db
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      # Developer: gratuita y funcionalmente equivalente a Enterprise para este proyecto.
+      MSSQL_PID: Developer
+      MSSQL_COLLATION: Modern_Spanish_CI_AS
+    volumes:
+      - datos-sqlserver:/var/opt/mssql
+    healthcheck:
+      # La API espera a que el motor responda de verdad, no solo a que exista el proceso.
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" -b -o /dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - interna
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: swmatrc-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: 8080
+      # El doble guion bajo es la convención de .NET para anidar secciones de configuración.
+      ConnectionStrings__SqlServer: "Server=db,1433;Database=${MSSQL_DATABASE};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=True"
+      Jwt__Clave: ${JWT_CLAVE}
+      Jwt__Emisor: swmatrc-api
+      Jwt__Audiencia: swmatrc-web
+      Jwt__MinutosVigencia: ${JWT_MINUTOS_VIGENCIA:-480}
+      Simulacion__IntervaloSegundos: ${SIMULACION_INTERVALO_SEGUNDOS:-3}
+      Simulacion__Habilitada: "true"
+      Cors__Origenes__0: ${CORS_ORIGEN:-http://localhost:8080}
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    networks:
+      - interna
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: swmatrc-web
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "${PUERTO_WEB:-8080}:80"
+    networks:
+      - interna
+    restart: unless-stopped
+
+volumes:
+  datos-sqlserver:
+    name: swmatrc-datos-sqlserver
+
+networks:
+  interna:
+    name: swmatrc-interna
+    driver: bridge

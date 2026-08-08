@@ -1,0 +1,118 @@
+<div class="panel-titulo">
+  <div>
+    <h1>Historial de eventos</h1>
+    <p class="texto-suave">
+      Registro de los incidentes detectados en {{ estado.comunidadActiva()?.nombre }}.
+    </p>
+  </div>
+</div>
+
+<section class="tarjeta filtros">
+  <div class="campo">
+    <label for="fenomeno">Fenómeno</label>
+    <select id="fenomeno" [(ngModel)]="fenomenoFiltro">
+      <option value="">Todos</option>
+      @for (f of fenomenos; track f.valor) {
+        <option [value]="f.valor">{{ f.icono }} {{ f.etiqueta }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="desde">Desde</label>
+    <input id="desde" type="datetime-local" [(ngModel)]="desde" />
+  </div>
+
+  <div class="campo">
+    <label for="hasta">Hasta</label>
+    <input id="hasta" type="datetime-local" [(ngModel)]="hasta" />
+  </div>
+
+  <div class="filtros__acciones">
+    <button class="boton boton--primario" type="button" (click)="aplicarFiltros()">Filtrar</button>
+    <button class="boton" type="button" (click)="limpiar()">Limpiar</button>
+  </div>
+</section>
+
+@if (recuento().length > 0) {
+  <div class="recuento">
+    @for (r of recuento(); track r.valor) {
+      <span class="insignia recuento__item">
+        <span aria-hidden="true">{{ r.icono }}</span> {{ r.etiqueta }}: {{ r.total }}
+      </span>
+    }
+  </div>
+}
+
+<section class="tarjeta">
+  @if (cargando()) {
+    <p class="vacio">Cargando historial…</p>
+  } @else if (!datos() || datos()!.elementos.length === 0) {
+    <p class="vacio">No se registraron eventos con los criterios indicados.</p>
+  } @else {
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Inicio</th>
+            <th>Fin</th>
+            <th>Duración</th>
+            <th>Fenómeno</th>
+            <th>Nivel máx.</th>
+            <th>Origen</th>
+            <th>Valor</th>
+            <th>Descripción</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (evento of datos()!.elementos; track evento.id) {
+            <tr>
+              <td class="numero">{{ evento.fechaInicio | date: 'dd/MM/yy HH:mm:ss' }}</td>
+              <td class="numero">
+                {{ evento.fechaFin ? (evento.fechaFin | date: 'dd/MM/yy HH:mm:ss') : '—' }}
+              </td>
+              <td class="numero">{{ duracion(evento) }}</td>
+              <td>
+                <span aria-hidden="true">{{ meta(evento).icono }}</span>
+                {{ meta(evento).etiqueta }}
+              </td>
+              <td>
+                <span class="insignia" [class]="'nivel-' + evento.nivelMaximo.toLowerCase()">
+                  {{ evento.nivelMaximo }}
+                </span>
+              </td>
+              <td class="mono">{{ evento.origenSensor }}</td>
+              <td class="numero">
+                {{ evento.valorRegistrado !== null ? (evento.valorRegistrado | number: '1.1-1') : '—' }}
+              </td>
+              <td class="descripcion">{{ evento.descripcion }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="paginacion" aria-label="Paginación del historial">
+      <button
+        class="boton boton--sm"
+        type="button"
+        [disabled]="datos()!.pagina <= 1"
+        (click)="irA(datos()!.pagina - 1)">
+        ← Anterior
+      </button>
+
+      <span class="texto-tenue">
+        Página {{ datos()!.pagina }} de {{ datos()!.totalPaginas }}
+        · {{ datos()!.totalElementos }} eventos
+      </span>
+
+      <button
+        class="boton boton--sm"
+        type="button"
+        [disabled]="datos()!.pagina >= datos()!.totalPaginas"
+        (click)="irA(datos()!.pagina + 1)">
+        Siguiente →
+      </button>
+    </nav>
+  }
+</section>

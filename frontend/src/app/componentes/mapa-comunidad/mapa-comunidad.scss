@@ -1,0 +1,47 @@
+.mapa {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.mapa__lienzo {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-height: 380px;
+  border-radius: var(--radio-sm);
+  border: 1px solid var(--borde-suave);
+  background: var(--fondo-alt);
+}
+
+.marcador--inactivo {
+  opacity: 0.35;
+}
+
+.marcador__halo {
+  animation: latido 1.6s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.mapa__leyenda {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+  font-size: 0.76rem;
+  color: var(--texto-suave);
+}
+
+.mapa__leyenda li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}

@@ -1,0 +1,41 @@
+.busqueda {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.busqueda input {
+  width: min(300px, 60vw);
+  padding: 0.4rem 0.65rem;
+  font-size: 0.86rem;
+}
+
+.accion {
+  font-family: var(--fuente-mono);
+  font-size: 0.72rem;
+  color: var(--primario);
+  border-color: var(--primario);
+  background: var(--primario-tenue);
+}
+
+.mono {
+  font-family: var(--fuente-mono);
+  font-size: 0.78rem;
+}
+
+.detalle {
+  max-width: 380px;
+  min-width: 200px;
+  font-size: 0.8rem;
+}
+
+.paginacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--borde-suave);
+}

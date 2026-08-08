@@ -1,0 +1,78 @@
+<div class="panel-titulo">
+  <div>
+    <h1>Bitácora de acciones</h1>
+    <p class="texto-suave">
+      Registro de auditoría del sistema. Solo lectura: ninguna acción puede alterarlo.
+    </p>
+  </div>
+
+  <form class="busqueda" (ngSubmit)="buscar()">
+    <input
+      type="search"
+      [(ngModel)]="filtro"
+      name="filtro"
+      placeholder="Filtrar por acción (SensorCreado…)"
+      aria-label="Filtrar por acción" />
+    <button class="boton" type="submit">Buscar</button>
+  </form>
+</div>
+
+<section class="tarjeta">
+  @if (cargando()) {
+    <p class="vacio">Cargando bitácora…</p>
+  } @else if (!datos() || datos()!.elementos.length === 0) {
+    <p class="vacio">No hay registros que coincidan con la búsqueda.</p>
+  } @else {
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Fecha y hora</th>
+            <th>Usuario</th>
+            <th>Acción</th>
+            <th>Entidad</th>
+            <th>Detalle</th>
+            <th>Dirección IP</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (registro of datos()!.elementos; track registro.id) {
+            <tr>
+              <td class="numero">{{ registro.fechaHora | date: 'dd/MM/yy HH:mm:ss' }}</td>
+              <td>{{ registro.usuarioEmail }}</td>
+              <td><span class="insignia accion">{{ registro.accion }}</span></td>
+              <td class="texto-tenue">
+                {{ registro.entidad }}@if (registro.entidadId) { <span class="mono">#{{ registro.entidadId }}</span> }
+              </td>
+              <td class="detalle texto-tenue">{{ detalleLegible(registro) }}</td>
+              <td class="mono texto-tenue">{{ registro.direccionIp ?? '—' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="paginacion" aria-label="Paginación de la bitácora">
+      <button
+        class="boton boton--sm"
+        type="button"
+        [disabled]="datos()!.pagina <= 1"
+        (click)="irA(datos()!.pagina - 1)">
+        ← Anterior
+      </button>
+
+      <span class="texto-tenue">
+        Página {{ datos()!.pagina }} de {{ datos()!.totalPaginas }}
+        · {{ datos()!.totalElementos }} registros
+      </span>
+
+      <button
+        class="boton boton--sm"
+        type="button"
+        [disabled]="datos()!.pagina >= datos()!.totalPaginas"
+        (click)="irA(datos()!.pagina + 1)">
+        Siguiente →
+      </button>
+    </nav>
+  }
+</section>

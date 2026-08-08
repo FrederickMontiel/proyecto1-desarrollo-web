@@ -1,0 +1,360 @@
+/* ==========================================================================
+   SWMATRC — Sistema de diseño
+   Consola de operaciones: fondo oscuro para que el color de la alerta sea lo
+   único que destaque en la pantalla, y contraste alto para una sala de
+   monitoreo con luz variable.
+   ========================================================================== */
+
+:root {
+  /* --- Superficies --- */
+  --fondo: #0b1220;
+  --fondo-alt: #0f1729;
+  --superficie: #151f35;
+  --superficie-alta: #1c2842;
+  --borde: #26324f;
+  --borde-suave: #1d2740;
+
+  /* --- Texto --- */
+  --texto: #e8eefc;
+  --texto-suave: #a3b0cc;
+  --texto-tenue: #6b7a9c;
+
+  /* --- Marca --- */
+  --primario: #38bdf8;
+  --primario-oscuro: #0ea5e9;
+  --primario-tenue: rgba(56, 189, 248, 0.12);
+
+  /* --- Código de colores del protocolo de alerta --- */
+  --verde: #22c55e;
+  --amarillo: #facc15;
+  --naranja: #fb923c;
+  --rojo: #ef4444;
+
+  --verde-tenue: rgba(34, 197, 94, 0.14);
+  --amarillo-tenue: rgba(250, 204, 21, 0.14);
+  --naranja-tenue: rgba(251, 146, 60, 0.14);
+  --rojo-tenue: rgba(239, 68, 68, 0.16);
+
+  /* --- Geometría --- */
+  --radio: 12px;
+  --radio-sm: 8px;
+  --sombra: 0 8px 24px rgba(2, 6, 23, 0.45);
+  --sombra-sm: 0 2px 8px rgba(2, 6, 23, 0.35);
+
+  --fuente: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --fuente-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, 'SF Mono', monospace;
+
+  color-scheme: dark;
+}
+
+/* Tema claro: pensado para proyectar el tablero o imprimir un informe. */
+:root[data-tema='claro'] {
+  --fondo: #f1f5f9;
+  --fondo-alt: #e6ecf5;
+  --superficie: #ffffff;
+  --superficie-alta: #f8fafc;
+  --borde: #cbd5e1;
+  --borde-suave: #dde5ef;
+
+  --texto: #0f172a;
+  --texto-suave: #475569;
+  --texto-tenue: #7c8ba1;
+
+  --primario: #0284c7;
+  --primario-oscuro: #0369a1;
+  --primario-tenue: rgba(2, 132, 199, 0.1);
+
+  --verde: #16a34a;
+  --amarillo: #ca8a04;
+  --naranja: #ea580c;
+  --rojo: #dc2626;
+
+  --sombra: 0 8px 24px rgba(15, 23, 42, 0.1);
+  --sombra-sm: 0 2px 8px rgba(15, 23, 42, 0.08);
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--fuente);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.2rem; }
+h3 { font-size: 1rem; }
+
+p { margin: 0; }
+
+a {
+  color: var(--primario);
+  text-decoration: none;
+}
+
+/* Toda cifra que cambia en vivo usa cifras de ancho fijo: sin esto el número
+   "salta" en cada actualización y el tablero parece inestable. */
+.cifra,
+td.numero,
+.valor-sensor {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- Controles */
+
+.boton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-sm);
+  background: var(--superficie-alta);
+  color: var(--texto);
+  font: inherit;
+  font-weight: 550;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+}
+
+.boton:hover:not(:disabled) {
+  background: var(--borde-suave);
+  border-color: var(--texto-tenue);
+}
+
+.boton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.boton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.boton--primario {
+  background: var(--primario);
+  border-color: var(--primario);
+  color: #04121f;
+}
+
+.boton--primario:hover:not(:disabled) {
+  background: var(--primario-oscuro);
+  border-color: var(--primario-oscuro);
+}
+
+.boton--peligro {
+  background: transparent;
+  border-color: var(--rojo);
+  color: var(--rojo);
+}
+
+.boton--peligro:hover:not(:disabled) {
+  background: var(--rojo-tenue);
+}
+
+.boton--sm {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.campo label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--texto-suave);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+input,
+select,
+textarea {
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio-sm);
+  background: var(--fondo-alt);
+  color: var(--texto);
+  font: inherit;
+  width: 100%;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid var(--primario);
+  outline-offset: 1px;
+  border-color: var(--primario);
+}
+
+/* El foco solo se dibuja cuando llega por teclado, para no ensuciar el clic. */
+.boton:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--primario);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------- Contenedores */
+
+.tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--borde-suave);
+  border-radius: var(--radio);
+  padding: 1.1rem;
+  box-shadow: var(--sombra-sm);
+}
+
+.panel-titulo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.rejilla {
+  display: grid;
+  gap: 1rem;
+}
+
+/* ------------------------------------------------------------------- Etiquetas */
+
+.insignia {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  border: 1px solid transparent;
+}
+
+.nivel-verde    { color: var(--verde);    background: var(--verde-tenue);    border-color: var(--verde); }
+.nivel-amarillo { color: var(--amarillo); background: var(--amarillo-tenue); border-color: var(--amarillo); }
+.nivel-naranja  { color: var(--naranja);  background: var(--naranja-tenue);  border-color: var(--naranja); }
+.nivel-rojo     { color: var(--rojo);     background: var(--rojo-tenue);     border-color: var(--rojo); }
+
+/* ---------------------------------------------------------------------- Tablas */
+
+.tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.tabla th {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  color: var(--texto-suave);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--borde);
+  white-space: nowrap;
+}
+
+.tabla td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--borde-suave);
+  vertical-align: middle;
+}
+
+.tabla tbody tr:hover {
+  background: var(--superficie-alta);
+}
+
+/* Una tabla ancha se desplaza dentro de su contenedor; la página nunca lo hace. */
+.tabla-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ------------------------------------------------------------------- Utilidades */
+
+.fila {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.crecer { flex: 1; }
+.texto-suave { color: var(--texto-suave); }
+.texto-tenue { color: var(--texto-tenue); font-size: 0.85rem; }
+.centrado { text-align: center; }
+
+.vacio {
+  padding: 2.5rem 1rem;
+  text-align: center;
+  color: var(--texto-tenue);
+}
+
+/* ------------------------------------------------------------------ Animaciones */
+
+@keyframes latido {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
+}
+
+@keyframes aparecer {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.pulso {
+  animation: latido 1.4s ease-in-out infinite;
+}
+
+/* Respeta a quien pidió menos movimiento en el sistema operativo: el parpadeo
+   sostenido de una alerta puede resultar incapacitante. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* -------------------------------------------------------------------- Scrollbar */
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--fondo-alt); }
+::-webkit-scrollbar-thumb {
+  background: var(--borde);
+  border-radius: 999px;
+  border: 2px solid var(--fondo-alt);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--texto-tenue); }

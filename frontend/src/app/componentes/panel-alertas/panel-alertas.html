@@ -1,0 +1,54 @@
+@if (alertas().length === 0) {
+  <div class="sin-alertas">
+    <span class="sin-alertas__icono" aria-hidden="true">✅</span>
+    <div>
+      <strong>Sin alertas activas</strong>
+      <p class="texto-suave">Todas las magnitudes se mantienen dentro de parámetros normales.</p>
+    </div>
+  </div>
+} @else {
+  <ul class="lista">
+    @for (alerta of alertas(); track alerta.id) {
+      <li class="alerta" [class]="'alerta--' + alerta.nivel.toLowerCase()">
+        <span class="alerta__icono" aria-hidden="true">{{ fenomeno(alerta).icono }}</span>
+
+        <div class="alerta__cuerpo">
+          <div class="alerta__encabezado">
+            <strong>{{ fenomeno(alerta).etiqueta }}</strong>
+            <span class="insignia" [class]="'nivel-' + alerta.nivel.toLowerCase()">
+              {{ nivel(alerta).etiqueta }}
+            </span>
+
+            @if (alerta.reconocida) {
+              <span class="insignia alerta__acuse" [title]="'Reconocida por ' + alerta.reconocidaPor">
+                ✓ Reconocida
+              </span>
+            }
+          </div>
+
+          <p class="alerta__mensaje">{{ alerta.mensaje }}</p>
+
+          <div class="alerta__meta texto-tenue">
+            <span>{{ alerta.fechaHora | date: 'dd/MM/yyyy HH:mm:ss' }}</span>
+            @if (alerta.sensorCodigo) {
+              <span>· Sensor {{ alerta.sensorCodigo }}</span>
+            }
+            @if (alerta.reconocida && alerta.reconocidaPor) {
+              <span>· Atendida por {{ alerta.reconocidaPor }}</span>
+            }
+          </div>
+        </div>
+
+        @if (!alerta.reconocida && auth.puedeOperar()) {
+          <button
+            class="boton boton--sm"
+            type="button"
+            (click)="reconocer(alerta)"
+            [disabled]="enProceso(alerta)">
+            {{ enProceso(alerta) ? '…' : 'Reconocer' }}
+          </button>
+        }
+      </li>
+    }
+  </ul>
+}

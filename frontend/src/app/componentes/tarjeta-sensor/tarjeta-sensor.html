@@ -1,0 +1,61 @@
+<article
+  class="sensor tarjeta"
+  [class]="'sensor--' + sensor().nivelActual.toLowerCase()"
+  [class.sensor--inactivo]="inactivo()"
+  [class.sensor--sin-senal]="sinSenal()">
+
+  <header class="sensor__cabecera">
+    <span class="sensor__icono" aria-hidden="true">{{ meta().icono }}</span>
+
+    <div class="sensor__titulo">
+      <h3>{{ meta().etiqueta }}</h3>
+      <span class="texto-tenue">{{ sensor().codigo }}</span>
+    </div>
+
+    @if (sinSenal()) {
+      <span class="insignia sensor__sin-senal">⚠ Sin señal</span>
+    } @else if (inactivo()) {
+      <span class="insignia sensor__estado">Fuera de servicio</span>
+    } @else {
+      <span class="insignia" [class]="'nivel-' + sensor().nivelActual.toLowerCase()">
+        {{ nivel().etiqueta }}
+      </span>
+    }
+  </header>
+
+  <p class="sensor__medida">
+    <span class="valor-sensor">{{ sensor().valorActual | number: '1.1-1' }}</span>
+    <span class="sensor__unidad">{{ sensor().unidadMedida }}</span>
+  </p>
+
+  <!-- La barra sitúa la lectura dentro del rango del instrumento; las marcas verticales
+       son los umbrales de cada color, así se ve el margen que queda antes de escalar. -->
+  <div
+    class="barra"
+    role="meter"
+    [attr.aria-valuenow]="sensor().valorActual"
+    [attr.aria-valuemin]="sensor().valorMinimo"
+    [attr.aria-valuemax]="sensor().valorMaximo"
+    [attr.aria-label]="meta().etiqueta + ' en ' + sensor().codigo">
+
+    <div class="barra__relleno" [style.width.%]="porcentaje()"></div>
+
+    @for (marca of marcas(); track marca.posicion + marca.clase) {
+      <span class="barra__marca" [class]="'barra__marca--' + marca.clase" [style.left.%]="marca.posicion"></span>
+    }
+  </div>
+
+  @if (sinSenal()) {
+    <p class="sensor__aviso">
+      El instrumento dejó de reportar. El valor mostrado es la última lectura conocida.
+    </p>
+  }
+
+  <footer class="sensor__pie texto-tenue">
+    <span>{{ sensor().valorMinimo | number: '1.0-0' }}</span>
+    @if (sensor().ultimaLectura) {
+      <span>{{ sensor().ultimaLectura | date: 'HH:mm:ss' }}</span>
+    }
+    <span>{{ sensor().valorMaximo | number: '1.0-0' }}</span>
+  </footer>
+</article>

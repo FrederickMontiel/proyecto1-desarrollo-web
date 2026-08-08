@@ -1,0 +1,144 @@
+.acceso {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  min-height: 100vh;
+}
+
+/* --------------------------------------------------------------- Panel izquierdo */
+
+.acceso__presentacion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background:
+    radial-gradient(1000px 600px at 15% 10%, rgba(56, 189, 248, 0.16), transparent 60%),
+    radial-gradient(800px 500px at 85% 90%, rgba(34, 197, 94, 0.12), transparent 55%),
+    var(--fondo-alt);
+  border-right: 1px solid var(--borde);
+}
+
+.presentacion__contenido {
+  max-width: 420px;
+}
+
+.presentacion__logo {
+  display: block;
+  font-size: 3.5rem;
+  line-height: 1;
+  margin-bottom: 0.75rem;
+}
+
+.presentacion__contenido h1 {
+  font-size: 2.6rem;
+  letter-spacing: 0.06em;
+  margin-bottom: 0.5rem;
+}
+
+.presentacion__lema {
+  color: var(--texto-suave);
+  font-size: 1.02rem;
+  line-height: 1.6;
+  margin-bottom: 1.75rem;
+}
+
+.presentacion__niveles {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  font-size: 0.9rem;
+  color: var(--texto-suave);
+}
+
+.presentacion__niveles li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.punto {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.punto--verde    { background: var(--verde); }
+.punto--amarillo { background: var(--amarillo); }
+.punto--naranja  { background: var(--naranja); }
+.punto--rojo     { background: var(--rojo); }
+
+/* ---------------------------------------------------------------- Panel derecho */
+
+.acceso__formulario {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+}
+
+.formulario {
+  width: min(400px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.75rem;
+}
+
+.formulario__cabecera {
+  margin-bottom: 0.25rem;
+}
+
+.formulario__cabecera p {
+  font-size: 0.88rem;
+  margin-top: 0.2rem;
+}
+
+.error-campo {
+  color: var(--rojo);
+  font-size: 0.78rem;
+}
+
+.error-general {
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radio-sm);
+  border: 1px solid var(--rojo);
+  background: var(--rojo-tenue);
+  color: var(--rojo);
+  font-size: 0.86rem;
+}
+
+.demo {
+  border-top: 1px solid var(--borde-suave);
+  padding-top: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.demo__botones {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+/* --------------------------------------------------------------------- Móvil */
+
+@media (max-width: 860px) {
+  .acceso {
+    grid-template-columns: 1fr;
+  }
+
+  .acceso__presentacion {
+    border-right: none;
+    border-bottom: 1px solid var(--borde);
+    padding: 2rem 1.5rem 1.5rem;
+  }
+
+  .presentacion__contenido h1 { font-size: 2rem; }
+  .presentacion__logo { font-size: 2.5rem; }
+  .presentacion__niveles { display: none; }
+}

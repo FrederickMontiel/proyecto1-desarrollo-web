@@ -1,0 +1,142 @@
+.sensor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  /* El color del nivel entra por el borde superior: identifica el estado sin teñir
+     toda la tarjeta, que restaría legibilidad a la cifra. */
+  border-top: 3px solid var(--borde);
+  transition: border-color 0.3s ease;
+}
+
+.sensor--verde    { border-top-color: var(--verde); }
+.sensor--amarillo { border-top-color: var(--amarillo); }
+.sensor--naranja  { border-top-color: var(--naranja); }
+.sensor--rojo     { border-top-color: var(--rojo); }
+
+.sensor--rojo {
+  box-shadow: 0 0 0 1px var(--rojo), var(--sombra-sm);
+}
+
+.sensor--inactivo {
+  opacity: 0.5;
+  border-top-color: var(--texto-tenue);
+}
+
+/* Sin señal no se atenúa como un sensor apagado: una avería tiene que verse, no
+   desvanecerse. El borde discontinuo indica que el dato ya no es de fiar. */
+.sensor--sin-senal {
+  opacity: 1;
+  border-top-style: dashed;
+  border-top-color: var(--amarillo);
+}
+
+.sensor--sin-senal .valor-sensor {
+  color: var(--texto-tenue);
+}
+
+.sensor__sin-senal {
+  color: var(--amarillo);
+  border-color: var(--amarillo);
+  background: var(--amarillo-tenue);
+  white-space: nowrap;
+}
+
+.sensor__aviso {
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--amarillo);
+}
+
+.sensor__cabecera {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+}
+
+.sensor__icono {
+  font-size: 1.35rem;
+  line-height: 1.2;
+}
+
+.sensor__titulo {
+  flex: 1;
+  min-width: 0;
+}
+
+.sensor__titulo h3 {
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sensor__titulo span {
+  font-family: var(--fuente-mono);
+  font-size: 0.72rem;
+}
+
+.sensor__estado {
+  color: var(--texto-tenue);
+  border-color: var(--borde);
+}
+
+.sensor__medida {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.valor-sensor {
+  font-size: 2.15rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.sensor__unidad {
+  font-size: 0.95rem;
+  color: var(--texto-suave);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------- Barra */
+
+.barra {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--fondo-alt);
+  border: 1px solid var(--borde-suave);
+  overflow: hidden;
+}
+
+.barra__relleno {
+  height: 100%;
+  background: currentColor;
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sensor--verde    .barra__relleno { background: var(--verde); }
+.sensor--amarillo .barra__relleno { background: var(--amarillo); }
+.sensor--naranja  .barra__relleno { background: var(--naranja); }
+.sensor--rojo     .barra__relleno { background: var(--rojo); }
+
+.barra__marca {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-1px);
+  opacity: 0.85;
+}
+
+.barra__marca--amarillo { background: var(--amarillo); }
+.barra__marca--naranja  { background: var(--naranja); }
+.barra__marca--rojo     { background: var(--rojo); }
+
+.sensor__pie {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}

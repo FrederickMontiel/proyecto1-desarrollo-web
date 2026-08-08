@@ -1,0 +1,173 @@
+<div class="panel-titulo">
+  <div>
+    <h1>Usuarios</h1>
+    <p class="texto-suave">
+      Cuentas con acceso al sistema. Las cuentas no se eliminan: se deshabilitan, para que su
+      rastro en la bitácora siga siendo legible.
+    </p>
+  </div>
+
+  <button class="boton boton--primario" type="button" (click)="abrirAlta()">
+    + Nueva cuenta
+  </button>
+</div>
+
+<!-- Formulario de alta y edición -->
+@if (formularioAbierto()) {
+  <section class="tarjeta formulario">
+    <div class="panel-titulo">
+      <h2>{{ editando() ? 'Editar cuenta' : 'Nueva cuenta' }}</h2>
+      <button class="boton boton--sm" type="button" (click)="cerrar()">Cancelar</button>
+    </div>
+
+    <form [formGroup]="formulario" (ngSubmit)="guardar()">
+      <div class="rejilla-campos">
+        <div class="campo">
+          <label for="nombre">Nombre completo</label>
+          <input id="nombre" formControlName="nombreCompleto" placeholder="María Torres" />
+          @if (formulario.controls.nombreCompleto.touched && formulario.controls.nombreCompleto.invalid) {
+            <small class="error-campo">El nombre es obligatorio.</small>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="email">Correo electrónico</label>
+          <input id="email" type="email" formControlName="email" placeholder="usuario@swmatrc.org" />
+          @if (editando()) {
+            <small class="texto-tenue">El correo no se puede cambiar.</small>
+          } @else if (formulario.controls.email.touched && formulario.controls.email.invalid) {
+            <small class="error-campo">Ingrese un correo válido.</small>
+          }
+        </div>
+
+        @if (!editando()) {
+          <div class="campo">
+            <label for="password">Contraseña inicial</label>
+            <input
+              id="password"
+              type="password"
+              formControlName="password"
+              autocomplete="new-password"
+              placeholder="Mínimo 8 caracteres" />
+            @if (formulario.controls.password.touched && formulario.controls.password.invalid) {
+              <small class="error-campo">Mínimo 8 caracteres.</small>
+            }
+          </div>
+        }
+
+        <div class="campo">
+          <label for="rol">Rol</label>
+          <select id="rol" formControlName="rol">
+            @for (r of roles; track r.valor) {
+              <option [value]="r.valor">{{ r.etiqueta }}</option>
+            }
+          </select>
+          <small class="texto-tenue">{{ descripcionRol(formulario.controls.rol.value) }}</small>
+        </div>
+      </div>
+
+      @if (editando() && esUnoMismo(editando()!)) {
+        <p class="aviso-propio">
+          Está editando su propia cuenta. No puede retirarse el rol de administrador.
+        </p>
+      }
+
+      <div class="formulario__acciones">
+        <button class="boton boton--primario" type="submit" [disabled]="guardando()">
+          {{ guardando() ? 'Guardando…' : editando() ? 'Guardar cambios' : 'Crear cuenta' }}
+        </button>
+        <button class="boton" type="button" (click)="cerrar()">Cancelar</button>
+      </div>
+    </form>
+  </section>
+}
+
+<!-- Listado -->
+<section class="tarjeta">
+  @if (cargando()) {
+    <p class="vacio">Cargando cuentas…</p>
+  } @else if (usuarios().length === 0) {
+    <p class="vacio">No hay cuentas registradas.</p>
+  } @else {
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Correo</th>
+            <th>Rol</th>
+            <th>Estado</th>
+            <th>Último acceso</th>
+            <th class="centrado">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (usuario of usuarios(); track usuario.id) {
+            <tr [class.fila-inactiva]="!usuario.activo">
+              <td>
+                {{ usuario.nombreCompleto }}
+                @if (esUnoMismo(usuario)) {
+                  <span class="insignia insignia--yo">usted</span>
+                }
+              </td>
+              <td class="mono">{{ usuario.email }}</td>
+              <td>
+                <span class="insignia" [class]="'rol--' + usuario.rol.toLowerCase()">
+                  {{ usuario.rolNombre }}
+                </span>
+              </td>
+              <td>
+                @if (usuario.activo) {
+                  <span class="insignia nivel-verde">Activa</span>
+                } @else {
+                  <span class="insignia">Deshabilitada</span>
+                }
+              </td>
+              <td class="numero texto-tenue">
+                {{ usuario.ultimoAcceso ? (usuario.ultimoAcceso | date: 'dd/MM/yy HH:mm') : 'Nunca' }}
+              </td>
+              <td>
+                <div class="acciones">
+                  <button class="boton boton--sm" type="button" (click)="abrirEdicion(usuario)">
+                    Editar
+                  </button>
+
+                  <button class="boton boton--sm" type="button" (click)="restablecerPassword(usuario)">
+                    Contraseña
+                  </button>
+
+                  <!-- Ni la propia cuenta ni el último administrador activo pueden
+                       deshabilitarse: dejaría el sistema sin quien lo administre. -->
+                  <button
+                    class="boton boton--sm"
+                    [class.boton--peligro]="usuario.activo"
+                    type="button"
+                    [disabled]="usuario.activo && (esUnoMismo(usuario) || esUltimoAdministrador(usuario))"
+                    [title]="
+                      esUnoMismo(usuario)
+                        ? 'No puede deshabilitar su propia cuenta'
+                        : esUltimoAdministrador(usuario)
+                          ? 'Es el único administrador activo'
+                          : ''
+                    "
+                    (click)="alternarEstado(usuario)">
+                    {{ usuario.activo ? 'Deshabilitar' : 'Habilitar' }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="leyenda-roles">
+      @for (r of roles; track r.valor) {
+        <div class="leyenda-roles__item">
+          <span class="insignia" [class]="'rol--' + r.valor.toLowerCase()">{{ r.etiqueta }}</span>
+          <span class="texto-tenue">{{ r.descripcion }}</span>
+        </div>
+      }
+    </div>
+  }
+</section>

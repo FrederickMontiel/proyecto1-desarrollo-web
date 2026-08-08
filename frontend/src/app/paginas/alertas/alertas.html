@@ -1,0 +1,105 @@
+<div class="panel-titulo">
+  <div>
+    <h1>Alertas</h1>
+    <p class="texto-suave">
+      Avisos emitidos por el motor de riesgo para {{ estado.comunidadActiva()?.nombre }}.
+    </p>
+  </div>
+</div>
+
+<section class="tarjeta bloque">
+  <div class="panel-titulo">
+    <h2>Activas</h2>
+    <span class="texto-tenue">{{ estado.alertasActivas().length }} abiertas</span>
+  </div>
+
+  <app-panel-alertas [alertas]="estado.alertasActivas()" (reconocida)="alReconocer($event)" />
+</section>
+
+<section class="tarjeta">
+  <div class="panel-titulo">
+    <h2>Registro completo</h2>
+
+    <label class="filtro">
+      <span class="texto-tenue">Nivel</span>
+      <select [(ngModel)]="nivelFiltro" (ngModelChange)="cambiarFiltro()">
+        <option value="">Todos</option>
+        @for (nivel of niveles; track nivel) {
+          <option [value]="nivel">{{ nivel }} — {{ nivelEtiqueta(nivel) }}</option>
+        }
+      </select>
+    </label>
+  </div>
+
+  @if (cargando()) {
+    <p class="vacio">Cargando alertas…</p>
+  } @else if (!historico() || historico()!.elementos.length === 0) {
+    <p class="vacio">No hay alertas que coincidan con el filtro.</p>
+  } @else {
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Fecha y hora</th>
+            <th>Fenómeno</th>
+            <th>Nivel</th>
+            <th>Descripción</th>
+            <th>Sensor</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (alerta of historico()!.elementos; track alerta.id) {
+            <tr>
+              <td class="numero">{{ alerta.fechaHora | date: 'dd/MM/yy HH:mm:ss' }}</td>
+              <td>
+                <span aria-hidden="true">{{ fenomeno(alerta).icono }}</span>
+                {{ fenomeno(alerta).etiqueta }}
+              </td>
+              <td>
+                <span class="insignia" [class]="'nivel-' + alerta.nivel.toLowerCase()">
+                  {{ alerta.nivel }}
+                </span>
+              </td>
+              <td class="descripcion">{{ alerta.mensaje }}</td>
+              <td class="mono">{{ alerta.sensorCodigo ?? '—' }}</td>
+              <td>
+                @if (alerta.activa) {
+                  <span class="insignia nivel-naranja">Abierta</span>
+                } @else {
+                  <span class="insignia">Cerrada</span>
+                }
+                @if (alerta.reconocida) {
+                  <span class="insignia nivel-verde">✓</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <nav class="paginacion" aria-label="Paginación de alertas">
+      <button
+        class="boton boton--sm"
+        type="button"
+        [disabled]="historico()!.pagina <= 1"
+        (click)="irA(historico()!.pagina - 1)">
+        ← Anterior
+      </button>
+
+      <span class="texto-tenue">
+        Página {{ historico()!.pagina }} de {{ historico()!.totalPaginas }}
+        · {{ historico()!.totalElementos }} registros
+      </span>
+
+      <button
+        class="boton boton--sm"
+        type="button"
+        [disabled]="historico()!.pagina >= historico()!.totalPaginas"
+        (click)="irA(historico()!.pagina + 1)">
+        Siguiente →
+      </button>
+    </nav>
+  }
+</section>

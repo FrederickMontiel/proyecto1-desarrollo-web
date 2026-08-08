@@ -1,0 +1,138 @@
+<!-- Franja de situación: el color ocupa todo el ancho para que el estado de la comunidad
+     se lea desde el otro extremo de la sala. -->
+<section
+  class="situacion"
+  [class]="'situacion--' + estado.nivelGlobal().toLowerCase()"
+  role="status"
+  aria-live="polite">
+
+  <div class="situacion__principal">
+    <span class="situacion__indicador" [class.pulso]="estado.nivelGlobal() === 'Rojo'"></span>
+
+    <div>
+      <h1>{{ estado.comunidadActiva()?.nombre ?? 'Sin comunidad seleccionada' }}</h1>
+      <p class="situacion__estado">
+        Estado {{ estado.nivelGlobal() }} · {{ nivelGlobal().etiqueta }}
+      </p>
+    </div>
+  </div>
+
+  <div class="situacion__detalle">
+    @if (fenomenosActivos().length > 0) {
+      <div class="situacion__fenomenos">
+        @for (fenomeno of fenomenosActivos(); track fenomeno.id) {
+          <span class="insignia" [class]="'nivel-' + fenomeno.nivel.toLowerCase()">
+            <span aria-hidden="true">{{ fenomeno.icono }}</span> {{ fenomeno.etiqueta }}
+          </span>
+        }
+      </div>
+    } @else {
+      <p class="texto-suave">Ningún fenómeno de riesgo detectado.</p>
+    }
+
+    @if (ultimaActualizacion()) {
+      <span class="texto-tenue">
+        Última lectura: {{ ultimaActualizacion() | date: 'HH:mm:ss' }}
+      </span>
+    }
+  </div>
+</section>
+
+<!-- Indicadores principales -->
+@if (estado.resumen(); as resumen) {
+  <section class="indicadores">
+    <div class="indicador tarjeta">
+      <span class="indicador__etiqueta">Sensores en servicio</span>
+      <strong class="indicador__cifra cifra">
+        {{ resumen.sensoresActivos }}<span class="indicador__total">/{{ resumen.totalSensores }}</span>
+      </strong>
+    </div>
+
+    <!-- Sensores mudos: el tablero debe decir cuándo dejó de saber, no solo cuándo hay
+         peligro. Solo aparece si hay alguno, para no añadir ruido en operación normal. -->
+    @if (resumen.sensoresSinSenal > 0) {
+      <div class="indicador tarjeta indicador--aviso">
+        <span class="indicador__etiqueta">Sin señal</span>
+        <strong class="indicador__cifra cifra">{{ resumen.sensoresSinSenal }}</strong>
+      </div>
+    }
+
+    <div class="indicador tarjeta">
+      <span class="indicador__etiqueta">Alertas activas</span>
+      <strong class="indicador__cifra cifra" [class.indicador__cifra--riesgo]="resumen.alertasActivas > 0">
+        {{ resumen.alertasActivas }}
+      </strong>
+    </div>
+
+    <div class="indicador tarjeta">
+      <span class="indicador__etiqueta">Sin reconocer</span>
+      <strong class="indicador__cifra cifra" [class.indicador__cifra--riesgo]="estado.alertasSinReconocer().length > 0">
+        {{ estado.alertasSinReconocer().length }}
+      </strong>
+    </div>
+
+    <div class="indicador tarjeta">
+      <span class="indicador__etiqueta">Eventos (24 h)</span>
+      <strong class="indicador__cifra cifra">{{ resumen.eventosUltimas24h }}</strong>
+    </div>
+  </section>
+}
+
+<!-- Monitoreo climático: una tarjeta por magnitud -->
+<section class="bloque">
+  <div class="panel-titulo">
+    <h2>Monitoreo climático</h2>
+
+    @if (auth.puedeAdministrar()) {
+      <button class="boton boton--peligro boton--sm" type="button" (click)="reiniciar()" [disabled]="reiniciando()">
+        {{ reiniciando() ? 'Reiniciando…' : '⟳ Reiniciar monitoreo' }}
+      </button>
+    }
+  </div>
+
+  @if (estado.sensores().length === 0) {
+    <p class="vacio">No hay sensores registrados en esta comunidad.</p>
+  } @else {
+    <div class="rejilla-sensores">
+      @for (sensor of estado.sensores(); track sensor.id) {
+        <app-tarjeta-sensor [sensor]="sensor" />
+      }
+    </div>
+  }
+</section>
+
+<!-- Alertas y croquis -->
+<section class="bloque columnas">
+  <div class="tarjeta">
+    <div class="panel-titulo">
+      <h2>Alertas activas</h2>
+      <span class="texto-tenue">{{ estado.alertasActivas().length }} abiertas</span>
+    </div>
+
+    <app-panel-alertas [alertas]="estado.alertasActivas()" (reconocida)="alReconocer($event)" />
+  </div>
+
+  <div class="tarjeta">
+    <div class="panel-titulo">
+      <h2>Mapa de la comunidad</h2>
+    </div>
+
+    <app-mapa-comunidad [comunidad]="estado.comunidadActiva()" [sensores]="estado.sensores()" />
+  </div>
+</section>
+
+<!-- Evolución temporal -->
+<section class="bloque">
+  <div class="tarjeta">
+    <div class="panel-titulo">
+      <h2>Evolución de los datos</h2>
+      <span class="texto-tenue">Últimos 30 minutos</span>
+    </div>
+
+    @if (estado.sensores().length > 0) {
+      <app-grafico-evolucion [sensores]="estado.sensores()" [series]="estado.series()" />
+    } @else {
+      <p class="vacio">Sin datos para graficar.</p>
+    }
+  </div>
+</section>

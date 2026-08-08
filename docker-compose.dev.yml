@@ -1,0 +1,22 @@
+# --------------------------------------------------------------------------------------
+# Superposición para desarrollo local. Publica hacia el host puertos que en producción
+# permanecen dentro de la red interna, para poder inspeccionar la base con SSMS o azure
+# data studio y llamar a la API con curl o Postman.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# No se llama docker-compose.override.yml a propósito: Compose aplicaría ese nombre solo,
+# y bastaría un despliegue descuidado en la VPS para dejar SQL Server expuesto a Internet.
+# --------------------------------------------------------------------------------------
+
+services:
+
+  db:
+    ports:
+      - "1433:1433"
+
+  api:
+    ports:
+      - "5080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development

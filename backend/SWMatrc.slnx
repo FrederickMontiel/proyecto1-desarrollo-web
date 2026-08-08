@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SWMatrc.Api/SWMatrc.Api.csproj" />
+    <Project Path="src/SWMatrc.Application/SWMatrc.Application.csproj" />
+    <Project Path="src/SWMatrc.Domain/SWMatrc.Domain.csproj" />
+    <Project Path="src/SWMatrc.Infrastructure/SWMatrc.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SWMatrc.Application.Tests/SWMatrc.Application.Tests.csproj" />
+    <Project Path="tests/SWMatrc.Domain.Tests/SWMatrc.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

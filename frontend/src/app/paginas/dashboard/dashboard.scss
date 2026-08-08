@@ -1,0 +1,141 @@
+/* ---------------------------------------------------------------- Franja de estado */
+
+.situacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  padding: 1.1rem 1.3rem;
+  border-radius: var(--radio);
+  border: 1px solid var(--borde);
+  border-left: 5px solid var(--verde);
+  background: var(--superficie);
+  margin-bottom: 1.1rem;
+  transition: border-color 0.4s ease, background 0.4s ease;
+}
+
+.situacion--verde    { border-left-color: var(--verde); }
+.situacion--amarillo { border-left-color: var(--amarillo); background: var(--amarillo-tenue); }
+.situacion--naranja  { border-left-color: var(--naranja);  background: var(--naranja-tenue); }
+.situacion--rojo     { border-left-color: var(--rojo);     background: var(--rojo-tenue); }
+
+.situacion__principal {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.situacion__indicador {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--verde);
+}
+
+.situacion--amarillo .situacion__indicador { background: var(--amarillo); }
+.situacion--naranja  .situacion__indicador { background: var(--naranja); }
+.situacion--rojo     .situacion__indicador { background: var(--rojo); }
+
+.situacion__estado {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--texto-suave);
+  margin-top: 0.1rem;
+}
+
+.situacion--rojo .situacion__estado { color: var(--rojo); }
+.situacion--naranja .situacion__estado { color: var(--naranja); }
+
+.situacion__detalle {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.situacion__fenomenos {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* ------------------------------------------------------------------- Indicadores */
+
+.indicadores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.1rem;
+}
+
+.indicador {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.9rem 1rem;
+}
+
+.indicador__etiqueta {
+  font-size: 0.74rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--texto-tenue);
+}
+
+.indicador__cifra {
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.indicador__cifra--riesgo { color: var(--rojo); }
+
+/* Una avería no es una emergencia, pero tampoco es normalidad: color de precaución. */
+.indicador--aviso {
+  border-color: var(--amarillo);
+  background: var(--amarillo-tenue);
+}
+
+.indicador--aviso .indicador__etiqueta,
+.indicador--aviso .indicador__cifra {
+  color: var(--amarillo);
+}
+
+.indicador__total {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--texto-tenue);
+}
+
+/* ---------------------------------------------------------------------- Bloques */
+
+.bloque {
+  margin-bottom: 1.1rem;
+}
+
+.rejilla-sensores {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.85rem;
+}
+
+.columnas {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .columnas { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .situacion { flex-direction: column; align-items: flex-start; }
+  .situacion__detalle { align-items: flex-start; }
+  .situacion__fenomenos { justify-content: flex-start; }
+}

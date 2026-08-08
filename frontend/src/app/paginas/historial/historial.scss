@@ -1,0 +1,49 @@
+.filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.85rem;
+  align-items: end;
+  margin-bottom: 1rem;
+}
+
+.filtros__acciones {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.recuento {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.recuento__item {
+  border-color: var(--borde);
+  color: var(--texto-suave);
+  background: var(--superficie);
+}
+
+.descripcion {
+  max-width: 400px;
+  min-width: 240px;
+  color: var(--texto-suave);
+  font-size: 0.85rem;
+}
+
+.mono {
+  font-family: var(--fuente-mono);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.paginacion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--borde-suave);
+}

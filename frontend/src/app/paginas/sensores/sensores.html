@@ -1,0 +1,203 @@
+<div class="panel-titulo">
+  <div>
+    <h1>Sensores</h1>
+    <p class="texto-suave">
+      Red de monitoreo de {{ estado.comunidadActiva()?.nombre }} ·
+      {{ estado.sensoresActivos().length }} de {{ estado.sensores().length }} en servicio.
+    </p>
+  </div>
+
+  @if (auth.puedeAdministrar()) {
+    <button class="boton boton--primario" type="button" (click)="abrirAlta()">
+      + Agregar sensor
+    </button>
+  }
+</div>
+
+<!-- Formulario de alta y edición -->
+@if (formularioAbierto()) {
+  <section class="tarjeta formulario">
+    <div class="panel-titulo">
+      <h2>{{ editando() ? 'Editar sensor ' + editando()!.codigo : 'Nuevo sensor simulado' }}</h2>
+      <button class="boton boton--sm" type="button" (click)="cerrar()">Cancelar</button>
+    </div>
+
+    <form [formGroup]="formulario" (ngSubmit)="guardar()">
+      <div class="rejilla-campos">
+        <div class="campo">
+          <label for="codigo">Código</label>
+          <input id="codigo" formControlName="codigo" placeholder="TEMP-11" />
+        </div>
+
+        <div class="campo">
+          <label for="nombre">Nombre</label>
+          <input id="nombre" formControlName="nombre" placeholder="Termómetro sector norte" />
+        </div>
+
+        <div class="campo">
+          <label for="tipo">Magnitud</label>
+          <select id="tipo" formControlName="tipo" (change)="alCambiarTipo($event)" [attr.disabled]="editando() ? true : null">
+            @for (t of tipos(); track t.valor) {
+              <option [value]="t.valor">{{ t.icono }} {{ t.etiqueta }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="campo">
+          <label for="unidad">Unidad</label>
+          <input id="unidad" formControlName="unidadMedida" />
+        </div>
+
+        <div class="campo">
+          <label for="minimo">Valor mínimo</label>
+          <input id="minimo" type="number" step="any" formControlName="valorMinimo" />
+        </div>
+
+        <div class="campo">
+          <label for="maximo">Valor máximo</label>
+          <input id="maximo" type="number" step="any" formControlName="valorMaximo" />
+        </div>
+
+        <div class="campo">
+          <label for="variacion">Variación por ciclo</label>
+          <input id="variacion" type="number" step="any" formControlName="variacionMaxima" />
+        </div>
+
+        @if (!editando()) {
+          <div class="campo">
+            <label for="inicial">Valor inicial</label>
+            <input id="inicial" type="number" step="any" formControlName="valorInicial" />
+          </div>
+        }
+      </div>
+
+      <fieldset class="umbrales">
+        <legend>Umbrales por exceso <span class="texto-tenue">(el riesgo sube con el valor)</span></legend>
+        <div class="rejilla-campos">
+          <div class="campo">
+            <label for="aa">Amarillo</label>
+            <input id="aa" type="number" step="any" formControlName="umbralAmarilloAlto" />
+          </div>
+          <div class="campo">
+            <label for="na">Naranja</label>
+            <input id="na" type="number" step="any" formControlName="umbralNaranjaAlto" />
+          </div>
+          <div class="campo">
+            <label for="ra">Rojo</label>
+            <input id="ra" type="number" step="any" formControlName="umbralRojoAlto" />
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset class="umbrales">
+        <legend>Umbrales por defecto <span class="texto-tenue">(el riesgo sube al bajar el valor)</span></legend>
+        <div class="rejilla-campos">
+          <div class="campo">
+            <label for="ab">Amarillo</label>
+            <input id="ab" type="number" step="any" formControlName="umbralAmarilloBajo" />
+          </div>
+          <div class="campo">
+            <label for="nb">Naranja</label>
+            <input id="nb" type="number" step="any" formControlName="umbralNaranjaBajo" />
+          </div>
+          <div class="campo">
+            <label for="rb">Rojo</label>
+            <input id="rb" type="number" step="any" formControlName="umbralRojoBajo" />
+          </div>
+        </div>
+      </fieldset>
+
+      <div class="formulario__acciones">
+        <button class="boton boton--primario" type="submit" [disabled]="guardando()">
+          {{ guardando() ? 'Guardando…' : editando() ? 'Guardar cambios' : 'Crear sensor' }}
+        </button>
+        <button class="boton" type="button" (click)="cerrar()">Cancelar</button>
+      </div>
+    </form>
+  </section>
+}
+
+<!-- Inventario -->
+<section class="tarjeta">
+  @if (estado.sensores().length === 0) {
+    <p class="vacio">Esta comunidad todavía no tiene sensores registrados.</p>
+  } @else {
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Magnitud</th>
+            <th>Valor actual</th>
+            <th>Nivel</th>
+            <th>Rango</th>
+            <th>Umbrales</th>
+            <th>Última lectura</th>
+            <th>Estado</th>
+            <th class="centrado">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (sensor of estado.sensores(); track sensor.id) {
+            <tr [class.fila-inactiva]="sensor.estado !== 'Activo'">
+              <td class="mono">{{ sensor.codigo }}</td>
+              <td>
+                <span aria-hidden="true">{{ meta[sensor.tipo].icono }}</span>
+                {{ meta[sensor.tipo].etiqueta }}
+              </td>
+              <td class="numero">
+                <strong>{{ sensor.valorActual | number: '1.1-1' }}</strong> {{ sensor.unidadMedida }}
+              </td>
+              <td>
+                <span class="insignia" [class]="'nivel-' + sensor.nivelActual.toLowerCase()">
+                  {{ sensor.nivelActual }}
+                </span>
+              </td>
+              <td class="numero texto-tenue">
+                {{ sensor.valorMinimo | number: '1.0-0' }} … {{ sensor.valorMaximo | number: '1.0-0' }}
+              </td>
+              <td class="numero texto-tenue umbrales-celda">
+                @if (sensor.umbralAmarilloAlto !== null) {
+                  <span class="umbral-alto">↑ {{ sensor.umbralAmarilloAlto }}/{{ sensor.umbralNaranjaAlto }}/{{ sensor.umbralRojoAlto }}</span>
+                }
+                @if (sensor.umbralAmarilloBajo !== null) {
+                  <span class="umbral-bajo">↓ {{ sensor.umbralAmarilloBajo }}/{{ sensor.umbralNaranjaBajo }}/{{ sensor.umbralRojoBajo }}</span>
+                }
+              </td>
+              <td class="numero texto-tenue">
+                {{ sensor.ultimaLectura ? (sensor.ultimaLectura | date: 'HH:mm:ss') : '—' }}
+              </td>
+              <td>
+                @if (sensor.estado === 'Activo') {
+                  <span class="insignia nivel-verde">Activo</span>
+                } @else {
+                  <span class="insignia">Inactivo</span>
+                }
+              </td>
+              <td>
+                <div class="acciones">
+                  @if (auth.puedeOperar()) {
+                    <button class="boton boton--sm" type="button" (click)="alternarEstado(sensor)">
+                      {{ sensor.estado === 'Activo' ? 'Desactivar' : 'Activar' }}
+                    </button>
+                    <button class="boton boton--sm" type="button" (click)="establecerValor(sensor)">
+                      Fijar valor
+                    </button>
+                  }
+                  @if (auth.puedeAdministrar()) {
+                    <button class="boton boton--sm" type="button" (click)="abrirEdicion(sensor)">
+                      Editar
+                    </button>
+                    <button class="boton boton--sm boton--peligro" type="button" (click)="eliminar(sensor)">
+                      Eliminar
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

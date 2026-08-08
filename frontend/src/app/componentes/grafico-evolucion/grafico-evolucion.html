@@ -1,0 +1,20 @@
+<div class="grafico">
+  <div class="grafico__pestanas" role="tablist" aria-label="Magnitud a graficar">
+    @for (opcion of tiposDisponibles(); track opcion.tipo) {
+      <button
+        type="button"
+        role="tab"
+        class="pestana"
+        [class.pestana--activa]="tipoSeleccionado() === opcion.tipo"
+        [attr.aria-selected]="tipoSeleccionado() === opcion.tipo"
+        (click)="seleccionar(opcion.tipo)">
+        <span aria-hidden="true">{{ opcion.icono }}</span>
+        <span class="pestana__texto">{{ opcion.etiqueta }}</span>
+      </button>
+    }
+  </div>
+
+  <div class="grafico__lienzo">
+    <canvas #lienzo aria-label="Evolución temporal de la magnitud seleccionada" role="img"></canvas>
+  </div>
+</div>
