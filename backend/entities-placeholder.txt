@@ -1,1 +1,2 @@
 // User entity
+// Product entity
