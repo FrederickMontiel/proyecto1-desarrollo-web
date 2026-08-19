@@ -3,3 +3,4 @@
 // Product list
 // Order history
 // Category filter
+// Responsive
