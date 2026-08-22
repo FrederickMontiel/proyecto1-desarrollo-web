@@ -86,3 +86,4 @@ networks:
   interna:
     name: swmatrc-interna
     driver: bridge
+# Updated Docker optimization
