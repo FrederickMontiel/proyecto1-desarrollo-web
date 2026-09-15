@@ -41,9 +41,43 @@ public class Alerta : EntidadBase
 
     public bool Activa => FechaCierre is null;
 
-    // --- Acuse de recibo: deja constancia de que un humano vio la alerta. ---
+    public EstadoAlerta Estado { get; set; } = EstadoAlerta.Activa;
+
+    // --- Trazabilidad: qué regla levantó el aviso y contra qué umbral. ---
+
+    /// <summary>Regla configurable que disparó la alerta; nulo si la emitió una regla integrada del motor.</summary>
+    public int? ReglaAlertaId { get; set; }
+    public ReglaAlerta? ReglaAlerta { get; set; }
+
+    /// <summary>Nombre de la regla, copiado para que la alerta siga siendo legible si la regla se edita.</summary>
+    public string ReglaNombre { get; set; } = string.Empty;
+
+    public decimal? Umbral { get; set; }
+
+    // --- Atención: deja constancia de que un humano vio la alerta y se hizo cargo. ---
     public bool Reconocida { get; set; }
     public int? ReconocidaPorUsuarioId { get; set; }
     public Usuario? ReconocidaPorUsuario { get; set; }
     public DateTime? FechaReconocimiento { get; set; }
+
+    // --- Cierre manual. Si lo cerró el sistema al normalizarse, queda en nulo. ---
+    public int? CerradaPorUsuarioId { get; set; }
+    public Usuario? CerradaPorUsuario { get; set; }
+
+    /// <summary>Marca la alerta como atendida por un usuario.</summary>
+    public void Atender(int? usuarioId, DateTime ahora)
+    {
+        Reconocida = true;
+        ReconocidaPorUsuarioId = usuarioId;
+        FechaReconocimiento = ahora;
+        Estado = EstadoAlerta.Atendida;
+    }
+
+    /// <summary>Cierra la alerta. Sin usuario significa que la cerró el sistema al normalizarse.</summary>
+    public void Cerrar(int? usuarioId, DateTime ahora)
+    {
+        FechaCierre = ahora;
+        CerradaPorUsuarioId = usuarioId;
+        Estado = EstadoAlerta.Cerrada;
+    }
 }

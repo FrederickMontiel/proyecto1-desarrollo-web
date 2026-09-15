@@ -14,6 +14,10 @@ public class Comunidad : EntidadBase
 
     public string Departamento { get; set; } = string.Empty;
 
+    public string Pais { get; set; } = string.Empty;
+
+    public string? Descripcion { get; set; }
+
     public decimal Latitud { get; set; }
 
     public decimal Longitud { get; set; }
