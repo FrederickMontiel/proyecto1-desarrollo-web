@@ -16,6 +16,9 @@ public record SensorDto
     public string TipoNombre { get; init; } = string.Empty;
     public string UnidadMedida { get; init; } = string.Empty;
     public EstadoSensor Estado { get; init; }
+    public string? Ubicacion { get; init; }
+    public string? Descripcion { get; init; }
+    public DateTime? FechaInstalacion { get; init; }
     public decimal Latitud { get; init; }
     public decimal Longitud { get; init; }
     public decimal ValorMinimo { get; init; }
@@ -44,6 +47,9 @@ public record SensorDto
         TipoNombre = s.Tipo.ToString(),
         UnidadMedida = s.UnidadMedida,
         Estado = s.Estado,
+        Ubicacion = s.Ubicacion,
+        Descripcion = s.Descripcion,
+        FechaInstalacion = s.FechaInstalacion,
         Latitud = s.Latitud,
         Longitud = s.Longitud,
         ValorMinimo = s.ValorMinimo,
@@ -69,6 +75,10 @@ public record CrearSensorRequest
     [Required, MaxLength(120)] public string Nombre { get; init; } = string.Empty;
     [Required] public TipoSensor Tipo { get; init; }
     [MaxLength(15)] public string? UnidadMedida { get; init; }
+    [MaxLength(200)] public string? Ubicacion { get; init; }
+    [MaxLength(500)] public string? Descripcion { get; init; }
+    public DateTime? FechaInstalacion { get; init; }
+    public EstadoSensor Estado { get; init; } = EstadoSensor.Activo;
     public decimal Latitud { get; init; }
     public decimal Longitud { get; init; }
     public decimal? ValorMinimo { get; init; }
@@ -88,6 +98,10 @@ public record ActualizarSensorRequest
 {
     [MaxLength(120)] public string? Nombre { get; init; }
     [MaxLength(15)] public string? UnidadMedida { get; init; }
+    public int? ComunidadId { get; init; }
+    [MaxLength(200)] public string? Ubicacion { get; init; }
+    [MaxLength(500)] public string? Descripcion { get; init; }
+    public DateTime? FechaInstalacion { get; init; }
     public decimal? Latitud { get; init; }
     public decimal? Longitud { get; init; }
     public decimal? ValorMinimo { get; init; }
