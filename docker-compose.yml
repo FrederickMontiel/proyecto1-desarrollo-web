@@ -8,11 +8,21 @@ name: swmatrc
 # archivo .env, que no se versiona.
 # --------------------------------------------------------------------------------------
 
+# Rotación de logs de los contenedores: sin límite, el registro json de Docker crece hasta
+# llenar el disco de la VPS. Se conservan 5 archivos de 10 MB por servicio.
+x-logs: &logs
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
 services:
 
   db:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: swmatrc-db
+    <<: *logs
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
@@ -39,6 +49,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: swmatrc-api
+    <<: *logs
     depends_on:
       db:
         condition: service_healthy
@@ -53,7 +64,7 @@ services:
       Jwt__MinutosVigencia: ${JWT_MINUTOS_VIGENCIA:-480}
       Simulacion__IntervaloSegundos: ${SIMULACION_INTERVALO_SEGUNDOS:-3}
       Simulacion__Habilitada: "true"
-      Cors__Origenes__0: ${CORS_ORIGEN:-http://localhost:8080}
+      Cors__Origenes__0: ${CORS_ORIGEN:-http://localhost:10001}
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/health || exit 1"]
       interval: 15s
@@ -69,11 +80,15 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: swmatrc-web
+    <<: *logs
     depends_on:
       api:
         condition: service_started
+    # Por omisión solo escucha en el loopback: Docker publica los puertos saltándose UFW,
+    # así que abrirlo en 0.0.0.0 lo expondría a Internet aunque el cortafuegos lo bloquee.
+    # El proxy inverso de la VPS (nginx con Let's Encrypt) es quien atiende el 80 y el 443.
     ports:
-      - "${PUERTO_WEB:-8080}:80"
+      - "${IP_PUBLICACION:-127.0.0.1}:${PUERTO_WEB:-10001}:80"
     networks:
       - interna
     restart: unless-stopped
@@ -86,4 +101,3 @@ networks:
   interna:
     name: swmatrc-interna
     driver: bridge
-# Updated Docker optimization

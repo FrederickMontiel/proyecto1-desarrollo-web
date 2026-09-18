@@ -1,0 +1,5 @@
+# Los scripts de shell se ejecutan en la VPS (Linux): un CRLF heredado de Windows los rompe
+# con "bad interpreter". Se fuerza LF sin importar la configuración de quien los edite.
+*.sh text eol=lf
+infra/cron.example text eol=lf
+infra/logrotate-swmatrc text eol=lf

@@ -1,0 +1,42 @@
+# --------------------------------------------------------------------------------------
+# Proxy inverso de la VPS hacia el contenedor web de SWMATRC (publicado en 127.0.0.1:10001).
+#
+# 1. Copiar y ajustar el dominio:
+#      sudo cp infra/nginx-vps.conf.example /etc/nginx/sites-available/swmatrc
+#      sudo sed -i 's/monitoreo.ejemplo.org/SU-DOMINIO/g' /etc/nginx/sites-available/swmatrc
+#      sudo ln -s /etc/nginx/sites-available/swmatrc /etc/nginx/sites-enabled/
+# 2. Certificado de Let's Encrypt (certbot completa los ssl_certificate y renueva solo):
+#      sudo certbot --nginx -d SU-DOMINIO
+# 3. En .env:  CORS_ORIGEN=https://SU-DOMINIO
+# --------------------------------------------------------------------------------------
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name monitoreo.ejemplo.org;
+
+    # certbot añade aquí la redirección permanente a HTTPS.
+
+    location / {
+        proxy_pass http://127.0.0.1:10001;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # Canal en tiempo real (SignalR sobre WebSocket en /hubs/monitoreo).
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        proxy_read_timeout 1h;
+    }
+
+    # Cabeceras de seguridad para el tráfico servido por HTTPS.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+}
