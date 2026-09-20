@@ -53,6 +53,10 @@ public sealed class InicializadorBaseDatos(
 
     private async Task SembrarAsync(CancellationToken ct)
     {
+        // Las reglas se siembran aparte: una base creada antes de existir las reglas
+        // configurables también debe recibir el juego inicial.
+        await SembrarReglasAsync(ct);
+
         if (await db.Comunidades.AnyAsync(ct))
         {
             logger.LogInformation("La base ya contiene datos; se omite la carga inicial.");
@@ -109,6 +113,8 @@ public sealed class InicializadorBaseDatos(
                 Nombre = "San Miguel del Río",
                 Municipio = "Jinotega",
                 Departamento = "Jinotega",
+                Pais = "Nicaragua",
+                Descripcion = "Comunidad ribereña expuesta a crecidas del río en temporada de lluvias.",
                 Latitud = 13.0884m,
                 Longitud = -85.9994m,
                 Poblacion = 1840
@@ -118,6 +124,8 @@ public sealed class InicializadorBaseDatos(
                 Nombre = "Valle Verde",
                 Municipio = "Matagalpa",
                 Departamento = "Matagalpa",
+                Pais = "Nicaragua",
+                Descripcion = "Comunidad agrícola de ladera con riesgo de sequía e incendios forestales.",
                 Latitud = 12.9271m,
                 Longitud = -85.9175m,
                 Poblacion = 960
@@ -151,6 +159,8 @@ public sealed class InicializadorBaseDatos(
             TipoSensor.Viento => ("Anemómetro", "VNT"),
             TipoSensor.Lluvia => ("Pluviómetro", "LLU"),
             TipoSensor.NivelRio => ("Limnímetro del cauce", "RIO"),
+            TipoSensor.NivelReservorio => ("Medidor del reservorio", "RES"),
+            TipoSensor.Humo => ("Detector de humo", "HUM-F"),
             _ => ("Sensor", "SEN")
         };
 
@@ -166,6 +176,8 @@ public sealed class InicializadorBaseDatos(
             Tipo = plantilla.Tipo,
             UnidadMedida = plantilla.Unidad,
             Estado = EstadoSensor.Activo,
+            Ubicacion = $"Casco urbano de {comunidad.Nombre}",
+            FechaInstalacion = DateTime.UtcNow.Date,
             Latitud = comunidad.Latitud + desplazamiento,
             Longitud = comunidad.Longitud - desplazamiento,
             ValorMinimo = plantilla.ValorMinimo,
@@ -181,4 +193,43 @@ public sealed class InicializadorBaseDatos(
             UmbralRojoBajo = plantilla.RojoBajo
         };
     }
+
+    private async Task SembrarReglasAsync(CancellationToken ct)
+    {
+        if (await db.ReglasAlerta.AnyAsync(ct))
+            return;
+
+        // Reglas de partida para las magnitudes que el motor integrado no cubre. El
+        // administrador puede editarlas, desactivarlas o crear otras desde el panel.
+        db.ReglasAlerta.AddRange(
+            Regla("Reservorio cerca del rebalse", TipoSensor.NivelReservorio, 92m, 97m, NivelAlerta.Naranja,
+                TipoFenomeno.Inundacion, "Alerta: el reservorio {sensor} está al {valor} {unidad}. Preparar el desfogue controlado."),
+            Regla("Reservorio en rebalse", TipoSensor.NivelReservorio, 97m, null, NivelAlerta.Rojo,
+                TipoFenomeno.Inundacion, "EMERGENCIA: el reservorio {sensor} rebasa el {valor} {unidad}. Evacuar las zonas aguas abajo."),
+            Regla("Reservorio en nivel crítico", TipoSensor.NivelReservorio, null, 20m, NivelAlerta.Naranja,
+                TipoFenomeno.Sequia, "Alerta de desabastecimiento: el reservorio {sensor} bajó al {valor} {unidad}. Racionar el agua."),
+            Regla("Presencia de humo", TipoSensor.Humo, 55m, 150m, NivelAlerta.Amarillo,
+                TipoFenomeno.IncendioForestal, "Precaución: {valor} {unidad} de partículas en {comunidad}. Verificar posibles quemas."),
+            Regla("Humo denso", TipoSensor.Humo, 150m, 250m, NivelAlerta.Naranja,
+                TipoFenomeno.IncendioForestal, "Alerta de incendio: {valor} {unidad} de partículas en {comunidad}. Avisar a la brigada."),
+            Regla("Incendio declarado", TipoSensor.Humo, 250m, null, NivelAlerta.Rojo,
+                TipoFenomeno.IncendioForestal, "EMERGENCIA por incendio: {valor} {unidad} de partículas. Evacuar y llamar a bomberos."));
+
+        await db.SaveChangesAsync(ct);
+        logger.LogInformation("Reglas de alerta iniciales cargadas.");
+    }
+
+    private static ReglaAlerta Regla(
+        string nombre, TipoSensor tipo, decimal? minimo, decimal? maximo,
+        NivelAlerta nivel, TipoFenomeno fenomeno, string mensaje) => new()
+    {
+        Nombre = nombre,
+        TipoSensor = tipo,
+        ValorMinimo = minimo,
+        ValorMaximo = maximo,
+        Nivel = nivel,
+        Fenomeno = fenomeno,
+        Mensaje = mensaje,
+        Activa = true
+    };
 }

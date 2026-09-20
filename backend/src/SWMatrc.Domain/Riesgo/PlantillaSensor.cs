@@ -51,6 +51,17 @@ public sealed record PlantillaSensor(
         // Altura del cauce sobre el lecho; 4.5 m es la cota de desbordamiento de referencia.
         [TipoSensor.NivelRio] = new(TipoSensor.NivelRio, "m", 0m, 8m, 1.8m, 0.15m,
             AmarilloAlto: 3.0m, NaranjaAlto: 3.8m, RojoAlto: 4.5m,
+            AmarilloBajo: null, NaranjaBajo: null, RojoBajo: null),
+
+        // Porcentaje de llenado del reservorio: el exceso anuncia desbordamiento y el
+        // defecto, desabastecimiento en época seca.
+        [TipoSensor.NivelReservorio] = new(TipoSensor.NivelReservorio, "%", 0m, 100m, 60m, 1.5m,
+            AmarilloAlto: 85m, NaranjaAlto: 92m, RojoAlto: 97m,
+            AmarilloBajo: 30m, NaranjaBajo: 20m, RojoBajo: 10m),
+
+        // Concentración de partículas finas (PM2.5); los cortes siguen el índice de calidad del aire.
+        [TipoSensor.Humo] = new(TipoSensor.Humo, "µg/m³", 0m, 500m, 12m, 6m,
+            AmarilloAlto: 55m, NaranjaAlto: 150m, RojoAlto: 250m,
             AmarilloBajo: null, NaranjaBajo: null, RojoBajo: null)
     };
 

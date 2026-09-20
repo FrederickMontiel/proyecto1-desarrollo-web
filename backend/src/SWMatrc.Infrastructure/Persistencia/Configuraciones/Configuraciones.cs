@@ -32,6 +32,8 @@ public sealed class ComunidadConfig : IEntityTypeConfiguration<Comunidad>
         b.Property(c => c.Nombre).HasMaxLength(120).IsRequired();
         b.Property(c => c.Municipio).HasMaxLength(120);
         b.Property(c => c.Departamento).HasMaxLength(120);
+        b.Property(c => c.Pais).HasMaxLength(80).IsRequired();
+        b.Property(c => c.Descripcion).HasMaxLength(500);
         b.Property(c => c.Latitud).HasPrecision(9, 6);
         b.Property(c => c.Longitud).HasPrecision(9, 6);
 
@@ -51,6 +53,8 @@ public sealed class SensorConfig : IEntityTypeConfiguration<Sensor>
         b.Property(s => s.UnidadMedida).HasMaxLength(15).IsRequired();
         b.Property(s => s.Tipo).HasConversion<int>();
         b.Property(s => s.Estado).HasConversion<int>();
+        b.Property(s => s.Ubicacion).HasMaxLength(200);
+        b.Property(s => s.Descripcion).HasMaxLength(500);
 
         b.Property(s => s.Latitud).HasPrecision(9, 6);
         b.Property(s => s.Longitud).HasPrecision(9, 6);
@@ -84,6 +88,8 @@ public sealed class LecturaConfig : IEntityTypeConfiguration<Lectura>
         b.HasKey(l => l.Id);
 
         b.Property(l => l.Valor).HasPrecision(10, 3);
+        b.Property(l => l.UnidadMedida).HasMaxLength(15).IsRequired();
+        b.Property(l => l.EstadoSensor).HasConversion<int>();
 
         // Toda consulta de gráficos filtra por sensor y ventana de tiempo; este índice
         // descendente cubre exactamente ese patrón sobre la tabla más grande del sistema.
@@ -107,6 +113,9 @@ public sealed class AlertaConfig : IEntityTypeConfiguration<Alerta>
         b.Property(a => a.Fenomeno).HasConversion<int>();
         b.Property(a => a.Mensaje).HasMaxLength(600).IsRequired();
         b.Property(a => a.ValorDisparo).HasPrecision(10, 3);
+        b.Property(a => a.Umbral).HasPrecision(10, 3);
+        b.Property(a => a.Estado).HasConversion<int>();
+        b.Property(a => a.ReglaNombre).HasMaxLength(160).IsRequired();
 
         b.Ignore(a => a.Activa);
 
@@ -138,6 +147,40 @@ public sealed class AlertaConfig : IEntityTypeConfiguration<Alerta>
             .WithMany()
             .HasForeignKey(a => a.ReconocidaPorUsuarioId)
             .OnDelete(DeleteBehavior.NoAction);
+
+        b.HasOne(a => a.CerradaPorUsuario)
+            .WithMany()
+            .HasForeignKey(a => a.CerradaPorUsuarioId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // Las reglas se desactivan en lugar de borrarse; si se llegara a borrar una, la
+        // alerta conserva su nombre en ReglaNombre y la referencia queda en nulo.
+        b.HasOne(a => a.ReglaAlerta)
+            .WithMany()
+            .HasForeignKey(a => a.ReglaAlertaId)
+            .OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public sealed class ReglaAlertaConfig : IEntityTypeConfiguration<ReglaAlerta>
+{
+    public void Configure(EntityTypeBuilder<ReglaAlerta> b)
+    {
+        b.ToTable("ReglasAlerta");
+        b.HasKey(r => r.Id);
+
+        b.Property(r => r.Nombre).HasMaxLength(120).IsRequired();
+        b.Property(r => r.Mensaje).HasMaxLength(500).IsRequired();
+        b.Property(r => r.TipoSensor).HasConversion<int>();
+        b.Property(r => r.Nivel).HasConversion<int>();
+        b.Property(r => r.Fenomeno).HasConversion<int>();
+        b.Property(r => r.ValorMinimo).HasPrecision(10, 3);
+        b.Property(r => r.ValorMaximo).HasPrecision(10, 3);
+
+        b.Ignore(r => r.UmbralReferencia);
+
+        b.HasIndex(r => r.Nombre).IsUnique();
+        b.HasIndex(r => new { r.TipoSensor, r.Activa });
     }
 }
 
@@ -153,6 +196,7 @@ public sealed class EventoHistorialConfig : IEntityTypeConfiguration<EventoHisto
         b.Property(e => e.Descripcion).HasMaxLength(600).IsRequired();
         b.Property(e => e.OrigenSensor).HasMaxLength(160);
         b.Property(e => e.ValorRegistrado).HasPrecision(10, 3);
+        b.Property(e => e.Estado).HasConversion<int>();
 
         b.Ignore(e => e.Duracion);
 
@@ -169,6 +213,17 @@ public sealed class EventoHistorialConfig : IEntityTypeConfiguration<EventoHisto
         b.HasOne(e => e.Alerta)
             .WithMany()
             .HasForeignKey(e => e.AlertaId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        // Mismo criterio que en Alertas: la baja de un sensor desata la referencia en el servicio.
+        b.HasOne(e => e.Sensor)
+            .WithMany()
+            .HasForeignKey(e => e.SensorId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        b.HasOne(e => e.UsuarioResponsable)
+            .WithMany()
+            .HasForeignKey(e => e.UsuarioResponsableId)
             .OnDelete(DeleteBehavior.NoAction);
     }
 }

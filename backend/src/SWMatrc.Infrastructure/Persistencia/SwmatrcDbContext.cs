@@ -16,6 +16,7 @@ public class SwmatrcDbContext(DbContextOptions<SwmatrcDbContext> options)
     public DbSet<Alerta> Alertas => Set<Alerta>();
     public DbSet<EventoHistorial> Eventos => Set<EventoHistorial>();
     public DbSet<Bitacora> Bitacoras => Set<Bitacora>();
+    public DbSet<ReglaAlerta> ReglasAlerta => Set<ReglaAlerta>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
