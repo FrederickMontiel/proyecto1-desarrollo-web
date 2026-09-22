@@ -65,9 +65,31 @@ public sealed class ServicioAutenticacion(
         return UsuarioDto.Desde(usuario);
     }
 
-    public async Task<IReadOnlyList<UsuarioDto>> ListarUsuariosAsync(CancellationToken ct = default)
+    public async Task CerrarSesionAsync(CancellationToken ct = default)
     {
-        var usuarios = await db.Usuarios.AsNoTracking().OrderBy(u => u.NombreCompleto).ToListAsync(ct);
+        if (usuarioActual.Id is not { } id)
+            return;
+
+        await bitacora.RegistrarAsync("CierreSesion", nameof(Usuario), id, null, ct);
+    }
+
+    public async Task<IReadOnlyList<UsuarioDto>> ListarUsuariosAsync(FiltroUsuarios? filtro = null, CancellationToken ct = default)
+    {
+        var consulta = db.Usuarios.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(filtro?.Busqueda))
+        {
+            var texto = filtro.Busqueda.Trim();
+            consulta = consulta.Where(u => u.NombreCompleto.Contains(texto) || u.Email.Contains(texto));
+        }
+
+        if (filtro?.Rol is { } rol)
+            consulta = consulta.Where(u => u.Rol == rol);
+
+        if (filtro?.Activo is { } activo)
+            consulta = consulta.Where(u => u.Activo == activo);
+
+        var usuarios = await consulta.OrderBy(u => u.NombreCompleto).ToListAsync(ct);
         return usuarios.Select(UsuarioDto.Desde).ToList();
     }
 

@@ -36,10 +36,12 @@ public sealed class ServicioMonitoreo(
     public async Task EjecutarCicloAsync(CancellationToken ct = default)
     {
         // Se incluyen los sensores sin señal: siguen en servicio y hay que darles la
-        // oportunidad de volver a reportar. Los desactivados a mano quedan fuera.
+        // oportunidad de volver a reportar. Los desactivados a mano quedan fuera, igual
+        // que los de comunidades desactivadas.
         var sensores = await db.Sensores
             .Include(s => s.Comunidad)
             .Where(s => s.Estado == EstadoSensor.Activo || s.Estado == EstadoSensor.SinSenal)
+            .Where(s => s.Comunidad!.Activa)
             .ToListAsync(ct);
 
         if (sensores.Count == 0)
@@ -70,7 +72,14 @@ public sealed class ServicioMonitoreo(
                 logger.LogInformation("El sensor {Codigo} recuperó la señal.", sensor.Codigo);
             }
 
-            var lectura = new Lectura { SensorId = sensor.Id, Valor = valor.Value, FechaHora = ahora };
+            var lectura = new Lectura
+            {
+                SensorId = sensor.Id,
+                Valor = valor.Value,
+                UnidadMedida = sensor.UnidadMedida,
+                EstadoSensor = sensor.Estado,
+                FechaHora = ahora
+            };
             db.Lecturas.Add(lectura);
 
             // La última medición se copia al sensor para que el dashboard y el motor de
@@ -128,10 +137,8 @@ public sealed class ServicioMonitoreo(
             .Include(c => c.Sensores)
             .FirstOrDefaultAsync(c => c.Id == comunidadId, ct);
 
-        if (comunidad is null || !comunidad.Activa)
+        if (comunidad is null)
             return;
-
-        var diagnosticos = motor.Evaluar(new ContextoEvaluacion(comunidad, comunidad.Sensores));
 
         var alertasAbiertas = await db.Alertas
             .Include(a => a.Sensor)
@@ -139,7 +146,79 @@ public sealed class ServicioMonitoreo(
             .Where(a => a.ComunidadId == comunidadId && a.FechaCierre == null)
             .ToListAsync(ct);
 
+        if (!comunidad.Activa)
+        {
+            // Una comunidad desactivada deja de monitorearse: sus avisos abiertos ya no
+            // describen nada vigente y se cierran sin esperar la histéresis.
+            await CerrarSinMonitoreoAsync(comunidad, alertasAbiertas, ct);
+            return;
+        }
+
+        var diagnosticos = await DiagnosticarAsync(comunidad, ct);
         await ConciliarAsync(comunidad, diagnosticos, alertasAbiertas, ct);
+    }
+
+    /// <summary>
+    /// Combina las reglas integradas del motor con las reglas configurables del panel. Se
+    /// conserva un diagnóstico por fenómeno —el más severo— porque la conciliación abre
+    /// una sola alerta por fenómeno. Ante empate de nivel gana la regla configurada, que es
+    /// la que el administrador definió de forma explícita, y entre varias configuradas la
+    /// más específica: la de umbral más cercano al valor medido (con 450 µg/m³, "≥ 400"
+    /// describe mejor la situación que "≥ 250").
+    /// </summary>
+    private async Task<IReadOnlyList<DiagnosticoRiesgo>> DiagnosticarAsync(Comunidad comunidad, CancellationToken ct)
+    {
+        var integrados = motor.Evaluar(new ContextoEvaluacion(comunidad, comunidad.Sensores));
+
+        var reglas = await db.ReglasAlerta.AsNoTracking().Where(r => r.Activa).ToListAsync(ct);
+        var configurados = new List<DiagnosticoRiesgo>();
+
+        foreach (var sensor in comunidad.Sensores.Where(s => s.EstaOperativo))
+        {
+            sensor.Comunidad ??= comunidad;
+
+            foreach (var regla in reglas.Where(r => r.TipoSensor == sensor.Tipo && r.SeCumple(sensor.ValorActual)))
+            {
+                configurados.Add(new DiagnosticoRiesgo(
+                    regla.Fenomeno, regla.Nivel, regla.RedactarMensaje(sensor, sensor.ValorActual),
+                    sensor.Id, sensor.ValorActual, regla.Id, regla.Nombre, regla.UmbralReferencia));
+            }
+        }
+
+        return integrados
+            .Concat(configurados)
+            .GroupBy(d => d.Fenomeno)
+            .Select(g => g
+                .OrderByDescending(d => d.Nivel)
+                .ThenByDescending(d => d.ReglaId.HasValue)
+                .ThenBy(DistanciaAlUmbral)
+                .ThenBy(d => d.ReglaId)
+                .First())
+            .OrderByDescending(d => d.Nivel)
+            .ToList();
+    }
+
+    private static decimal DistanciaAlUmbral(DiagnosticoRiesgo d) =>
+        d is { Umbral: { } umbral, ValorDisparo: { } valor } ? Math.Abs(valor - umbral) : decimal.MaxValue;
+
+    private async Task CerrarSinMonitoreoAsync(Comunidad comunidad, List<Alerta> abiertas, CancellationToken ct)
+    {
+        if (abiertas.Count == 0)
+            return;
+
+        var ahora = DateTime.UtcNow;
+        foreach (var alerta in abiertas)
+            alerta.Cerrar(null, ahora);
+
+        await db.SaveChangesAsync(ct);
+        await CerrarEventosAsync(abiertas, ahora, ct);
+        await db.SaveChangesAsync(ct);
+
+        foreach (var alerta in abiertas)
+        {
+            alerta.Comunidad ??= comunidad;
+            await notificador.AlertaCerradaAsync(AlertaDto.Desde(alerta), ct);
+        }
     }
 
     /// <summary>
@@ -172,6 +251,10 @@ public sealed class ServicioMonitoreo(
                     Fenomeno = diagnostico.Fenomeno,
                     Mensaje = diagnostico.Mensaje,
                     ValorDisparo = diagnostico.ValorDisparo,
+                    ReglaAlertaId = diagnostico.ReglaId,
+                    ReglaNombre = diagnostico.ReglaNombre ?? "Regla integrada",
+                    Umbral = UmbralDe(comunidad, diagnostico),
+                    Estado = EstadoAlerta.Activa,
                     FechaHora = ahora
                 };
 
@@ -188,12 +271,17 @@ public sealed class ServicioMonitoreo(
                 abierta.Reconocida = false;
                 abierta.ReconocidaPorUsuarioId = null;
                 abierta.FechaReconocimiento = null;
+                abierta.Estado = EstadoAlerta.Activa;
                 escaladas.Add(abierta);
             }
 
-            // Aunque no cambie el color, el texto y el valor reflejan la medición más reciente.
+            // Aunque no cambie el color, el texto, el valor y la regla reflejan la medición más reciente.
             abierta.Mensaje = diagnostico.Mensaje;
             abierta.ValorDisparo = diagnostico.ValorDisparo;
+            abierta.SensorId = diagnostico.SensorId ?? abierta.SensorId;
+            abierta.ReglaAlertaId = diagnostico.ReglaId;
+            abierta.ReglaNombre = diagnostico.ReglaNombre ?? abierta.ReglaNombre;
+            abierta.Umbral = UmbralDe(comunidad, diagnostico) ?? abierta.Umbral;
             abierta.FechaModificacion = ahora;
 
             // La condición sigue presente: se reinicia la cuenta atrás para el cierre.
@@ -213,7 +301,7 @@ public sealed class ServicioMonitoreo(
             if (alerta.CiclosSinRiesgo < CiclosParaCierre)
                 continue;
 
-            alerta.FechaCierre = ahora;
+            alerta.Cerrar(null, ahora);
             cerradas.Add(alerta);
         }
 
@@ -267,7 +355,9 @@ public sealed class ServicioMonitoreo(
                 // Se copia el nombre del sensor: el historial debe seguir siendo legible
                 // aunque más adelante el sensor se dé de baja.
                 OrigenSensor = sensor is null ? "Evaluación combinada" : $"{sensor.Codigo} — {sensor.Nombre}",
+                SensorId = sensor?.Id,
                 ValorRegistrado = alerta.ValorDisparo,
+                Estado = EstadoAlerta.Activa,
                 FechaInicio = alerta.FechaHora
             });
         }
@@ -291,6 +381,7 @@ public sealed class ServicioMonitoreo(
 
             evento.Descripcion = alerta.Mensaje;
             evento.ValorRegistrado = alerta.ValorDisparo;
+            evento.Estado = EstadoAlerta.Activa;
             evento.FechaModificacion = DateTime.UtcNow;
         }
     }
@@ -308,8 +399,25 @@ public sealed class ServicioMonitoreo(
         foreach (var evento in eventos)
         {
             evento.FechaFin = ahora;
+            evento.Estado = EstadoAlerta.Cerrada;
             evento.FechaModificacion = ahora;
         }
+    }
+
+    /// <summary>
+    /// Umbral que se reporta en la alerta. Las reglas configurables lo traen consigo; para
+    /// las integradas se toma el umbral del sensor que corresponde a la lectura.
+    /// </summary>
+    private static decimal? UmbralDe(Comunidad comunidad, DiagnosticoRiesgo diagnostico)
+    {
+        if (diagnostico.Umbral is { } umbral)
+            return umbral;
+
+        var sensor = comunidad.Sensores.FirstOrDefault(s => s.Id == diagnostico.SensorId);
+        if (sensor is null || diagnostico.ValorDisparo is not { } valor)
+            return null;
+
+        return sensor.UmbralPara(sensor.Clasificar(valor), valor);
     }
 
     public async Task<EstadoComunidadDto> ObtenerEstadoAsync(int comunidadId, CancellationToken ct = default)
@@ -324,6 +432,7 @@ public sealed class ServicioMonitoreo(
             .AsNoTracking()
             .Include(a => a.Sensor)
             .Include(a => a.ReconocidaPorUsuario)
+            .Include(a => a.CerradaPorUsuario)
             .Where(a => a.ComunidadId == comunidadId && a.FechaCierre == null)
             .OrderByDescending(a => a.Nivel)
             .ThenByDescending(a => a.FechaHora)
@@ -396,12 +505,14 @@ public sealed class ServicioMonitoreo(
 
     public async Task<ResumenDashboardDto> ObtenerResumenAsync(int? comunidadId, CancellationToken ct = default)
     {
+        var comunidades = db.Comunidades.AsNoTracking().AsQueryable();
         var sensores = db.Sensores.AsNoTracking().AsQueryable();
         var alertas = db.Alertas.AsNoTracking().AsQueryable();
         var eventos = db.Eventos.AsNoTracking().AsQueryable();
 
         if (comunidadId is { } id)
         {
+            comunidades = comunidades.Where(c => c.Id == id);
             sensores = sensores.Where(s => s.ComunidadId == id);
             alertas = alertas.Where(a => a.ComunidadId == id);
             eventos = eventos.Where(e => e.ComunidadId == id);
@@ -414,8 +525,10 @@ public sealed class ServicioMonitoreo(
 
         return new ResumenDashboardDto
         {
+            TotalComunidades = await comunidades.CountAsync(ct),
             TotalSensores = await sensores.CountAsync(ct),
             SensoresActivos = await sensores.CountAsync(s => s.Estado == EstadoSensor.Activo, ct),
+            SensoresInactivos = await sensores.CountAsync(s => s.Estado == EstadoSensor.Inactivo, ct),
             SensoresSinSenal = await sensores.CountAsync(s => s.Estado == EstadoSensor.SinSenal, ct),
             AlertasActivas = activas.Count,
             EventosUltimas24h = recientes.Count,
@@ -438,7 +551,7 @@ public sealed class ServicioMonitoreo(
         var abiertas = await db.Alertas.Where(a => a.FechaCierre == null).ToListAsync(ct);
         foreach (var alerta in abiertas)
         {
-            alerta.FechaCierre = ahora;
+            alerta.Cerrar(null, ahora);
             alerta.FechaModificacion = ahora;
         }
 
@@ -446,6 +559,7 @@ public sealed class ServicioMonitoreo(
         foreach (var evento in eventosAbiertos)
         {
             evento.FechaFin = ahora;
+            evento.Estado = EstadoAlerta.Cerrada;
             evento.FechaModificacion = ahora;
         }
 

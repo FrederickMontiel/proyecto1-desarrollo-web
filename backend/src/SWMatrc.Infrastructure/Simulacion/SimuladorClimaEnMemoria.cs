@@ -146,6 +146,8 @@ public sealed class SimuladorClimaEnMemoria(ILogger<SimuladorClimaEnMemoria> log
             TipoSensor.Humedad => 0.92m,
             TipoSensor.Viento => 0.30m,
             TipoSensor.Temperatura => 0.42m,
+            TipoSensor.NivelReservorio => 0.90m,
+            TipoSensor.Humo => 0.03m,
             _ => 0.5m
         },
         TipoEpisodio.OlaDeCalor => tipo switch
@@ -155,6 +157,8 @@ public sealed class SimuladorClimaEnMemoria(ILogger<SimuladorClimaEnMemoria> log
             TipoSensor.Lluvia => 0.0m,
             TipoSensor.Viento => 0.28m,
             TipoSensor.NivelRio => 0.18m,
+            TipoSensor.NivelReservorio => 0.40m,
+            TipoSensor.Humo => 0.20m,
             _ => 0.5m
         },
         TipoEpisodio.FrenteFrio => tipo switch
@@ -164,6 +168,8 @@ public sealed class SimuladorClimaEnMemoria(ILogger<SimuladorClimaEnMemoria> log
             TipoSensor.Viento => 0.35m,
             TipoSensor.Lluvia => 0.08m,
             TipoSensor.NivelRio => 0.25m,
+            TipoSensor.NivelReservorio => 0.62m,
+            TipoSensor.Humo => 0.02m,
             _ => 0.5m
         },
         TipoEpisodio.SequiaProlongada => tipo switch
@@ -173,6 +179,8 @@ public sealed class SimuladorClimaEnMemoria(ILogger<SimuladorClimaEnMemoria> log
             TipoSensor.Temperatura => 0.72m,
             TipoSensor.Viento => 0.22m,
             TipoSensor.NivelRio => 0.08m,
+            TipoSensor.NivelReservorio => 0.15m,
+            TipoSensor.Humo => 0.34m,
             _ => 0.5m
         },
         TipoEpisodio.Ventarron => tipo switch
@@ -182,6 +190,8 @@ public sealed class SimuladorClimaEnMemoria(ILogger<SimuladorClimaEnMemoria> log
             TipoSensor.Humedad => 0.55m,
             TipoSensor.Temperatura => 0.40m,
             TipoSensor.NivelRio => 0.32m,
+            TipoSensor.NivelReservorio => 0.60m,
+            TipoSensor.Humo => 0.05m,
             _ => 0.5m
         },
         // Calma: cada magnitud gravita hacia su valor de reposo habitual.
@@ -192,6 +202,8 @@ public sealed class SimuladorClimaEnMemoria(ILogger<SimuladorClimaEnMemoria> log
             TipoSensor.Viento => 0.10m,
             TipoSensor.Lluvia => 0.02m,
             TipoSensor.NivelRio => 0.22m,
+            TipoSensor.NivelReservorio => 0.60m,
+            TipoSensor.Humo => 0.02m,
             _ => 0.5m
         }
     };

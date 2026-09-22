@@ -29,19 +29,33 @@ public sealed class ServicioAlertas(
         return alertas.Select(AlertaDto.Desde).ToList();
     }
 
-    public async Task<PaginaDto<AlertaDto>> ListarAsync(
-        int pagina, int tamano, int? comunidadId, NivelAlerta? nivel, CancellationToken ct = default)
+    public async Task<PaginaDto<AlertaDto>> ListarAsync(FiltroAlertas filtro, CancellationToken ct = default)
     {
-        pagina = Math.Max(1, pagina);
-        tamano = Math.Clamp(tamano, 1, 200);
+        var pagina = Math.Max(1, filtro.Pagina);
+        var tamano = Math.Clamp(filtro.Tamano, 1, 200);
 
         var consulta = ConsultaBase();
 
-        if (comunidadId is { } id)
-            consulta = consulta.Where(a => a.ComunidadId == id);
+        if (filtro.ComunidadId is { } comunidadId)
+            consulta = consulta.Where(a => a.ComunidadId == comunidadId);
 
-        if (nivel is { } n)
-            consulta = consulta.Where(a => a.Nivel == n);
+        if (filtro.SensorId is { } sensorId)
+            consulta = consulta.Where(a => a.SensorId == sensorId);
+
+        if (filtro.Fenomeno is { } fenomeno)
+            consulta = consulta.Where(a => a.Fenomeno == fenomeno);
+
+        if (filtro.Nivel is { } nivel)
+            consulta = consulta.Where(a => a.Nivel == nivel);
+
+        if (filtro.Estado is { } estado)
+            consulta = consulta.Where(a => a.Estado == estado);
+
+        if (filtro.Desde is { } desde)
+            consulta = consulta.Where(a => a.FechaHora >= desde);
+
+        if (filtro.Hasta is { } hasta)
+            consulta = consulta.Where(a => a.FechaHora <= hasta);
 
         var total = await consulta.CountAsync(ct);
 
@@ -60,40 +74,92 @@ public sealed class ServicioAlertas(
         };
     }
 
-    public async Task<AlertaDto> ReconocerAsync(int alertaId, CancellationToken ct = default)
+    public async Task<AlertaDto> ObtenerAsync(int alertaId, CancellationToken ct = default)
     {
-        var alerta = await db.Alertas
-            .Include(a => a.Comunidad)
-            .Include(a => a.Sensor)
-            .FirstOrDefaultAsync(a => a.Id == alertaId, ct)
+        var alerta = await ConsultaBase().FirstOrDefaultAsync(a => a.Id == alertaId, ct)
             ?? throw new ExcepcionNoEncontrado("la alerta", alertaId);
 
-        if (alerta.Reconocida)
-            throw new ExcepcionValidacion("La alerta ya fue reconocida.");
+        return AlertaDto.Desde(alerta);
+    }
 
-        alerta.Reconocida = true;
-        alerta.ReconocidaPorUsuarioId = usuarioActual.Id;
-        alerta.FechaReconocimiento = DateTime.UtcNow;
-        alerta.FechaModificacion = DateTime.UtcNow;
+    public async Task<AlertaDto> AtenderAsync(int alertaId, string? comentario = null, CancellationToken ct = default)
+    {
+        var alerta = await CargarAsync(alertaId, ct);
 
+        if (alerta.Estado == EstadoAlerta.Cerrada)
+            throw new ExcepcionValidacion("La alerta ya está cerrada.");
+
+        if (alerta.Estado == EstadoAlerta.Atendida)
+            throw new ExcepcionValidacion("La alerta ya fue atendida.");
+
+        var ahora = DateTime.UtcNow;
+        alerta.Atender(usuarioActual.Id, ahora);
+        await SincronizarEventoAsync(alerta, EstadoAlerta.Atendida, null, ct);
         await db.SaveChangesAsync(ct);
 
-        // Se recarga la navegación para que el DTO lleve el nombre de quien reconoció.
-        await db.Usuarios.Where(u => u.Id == usuarioActual.Id).LoadAsync(ct);
+        var dto = await RecargarAsync(alerta.Id, ct);
 
-        var dto = AlertaDto.Desde(alerta);
-
-        await bitacora.RegistrarAsync("AlertaReconocida", nameof(Alerta), alerta.Id,
-            new { Fenomeno = alerta.Fenomeno.ToString(), Nivel = alerta.Nivel.ToString() }, ct);
+        await bitacora.RegistrarAsync("AlertaAtendida", nameof(Alerta), alerta.Id,
+            new { Fenomeno = alerta.Fenomeno.ToString(), Nivel = alerta.Nivel.ToString(), Comentario = comentario }, ct);
         await notificador.AlertaGeneradaAsync(dto, ct);
 
         return dto;
     }
+
+    /// <remarks>
+    /// Cerrar a mano da por terminado el episodio. Si la condición de riesgo persiste, el
+    /// motor abrirá una alerta nueva en el siguiente ciclo: el cierre no silencia el riesgo.
+    /// </remarks>
+    public async Task<AlertaDto> CerrarAsync(int alertaId, string? comentario = null, CancellationToken ct = default)
+    {
+        var alerta = await CargarAsync(alertaId, ct);
+
+        if (alerta.Estado == EstadoAlerta.Cerrada)
+            throw new ExcepcionValidacion("La alerta ya está cerrada.");
+
+        var ahora = DateTime.UtcNow;
+        alerta.Cerrar(usuarioActual.Id, ahora);
+        await SincronizarEventoAsync(alerta, EstadoAlerta.Cerrada, ahora, ct);
+        await db.SaveChangesAsync(ct);
+
+        var dto = await RecargarAsync(alerta.Id, ct);
+
+        await bitacora.RegistrarAsync("AlertaCerrada", nameof(Alerta), alerta.Id,
+            new { Fenomeno = alerta.Fenomeno.ToString(), Nivel = alerta.Nivel.ToString(), Comentario = comentario }, ct);
+        await notificador.AlertaCerradaAsync(dto, ct);
+
+        return dto;
+    }
+
+    /// <summary>Traslada el estado y el responsable al asiento de historial de la alerta.</summary>
+    private async Task SincronizarEventoAsync(Alerta alerta, EstadoAlerta estado, DateTime? fin, CancellationToken ct)
+    {
+        var evento = await db.Eventos
+            .Where(e => e.AlertaId == alerta.Id)
+            .OrderByDescending(e => e.FechaInicio)
+            .FirstOrDefaultAsync(ct);
+
+        if (evento is null)
+            return;
+
+        evento.Estado = estado;
+        evento.UsuarioResponsableId = usuarioActual.Id;
+        if (fin is { } f && evento.FechaFin is null)
+            evento.FechaFin = f;
+    }
+
+    private async Task<Alerta> CargarAsync(int alertaId, CancellationToken ct) =>
+        await db.Alertas.FirstOrDefaultAsync(a => a.Id == alertaId, ct)
+        ?? throw new ExcepcionNoEncontrado("la alerta", alertaId);
+
+    private async Task<AlertaDto> RecargarAsync(int alertaId, CancellationToken ct) =>
+        AlertaDto.Desde(await ConsultaBase().FirstAsync(a => a.Id == alertaId, ct));
 
     private IQueryable<Alerta> ConsultaBase() =>
         db.Alertas
             .AsNoTracking()
             .Include(a => a.Comunidad)
             .Include(a => a.Sensor)
-            .Include(a => a.ReconocidaPorUsuario);
+            .Include(a => a.ReconocidaPorUsuario)
+            .Include(a => a.CerradaPorUsuario);
 }

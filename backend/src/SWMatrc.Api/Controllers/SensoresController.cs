@@ -15,8 +15,8 @@ public sealed class SensoresController(IServicioSensores sensores) : ControllerB
 {
     [HttpGet]
     public async Task<ActionResult<IReadOnlyList<SensorDto>>> Listar(
-        [FromQuery] int? comunidadId, CancellationToken ct) =>
-        Ok(await sensores.ListarAsync(comunidadId, ct));
+        [FromQuery] FiltroSensores filtro, CancellationToken ct) =>
+        Ok(await sensores.ListarAsync(filtro, ct));
 
     [HttpGet("{id:int}")]
     public async Task<ActionResult<SensorDto>> Obtener(int id, CancellationToken ct) =>
@@ -28,7 +28,7 @@ public sealed class SensoresController(IServicioSensores sensores) : ControllerB
     /// </summary>
     [HttpGet("plantillas")]
     public ActionResult<object> Plantillas() =>
-        Ok(PlantillaSensor.Todas.Select(p => new
+        Ok(Enum.GetValues<TipoSensor>().Select(PlantillaSensor.Para).Select(p => new
         {
             tipo = p.Tipo.ToString(),
             tipoValor = (int)p.Tipo,
