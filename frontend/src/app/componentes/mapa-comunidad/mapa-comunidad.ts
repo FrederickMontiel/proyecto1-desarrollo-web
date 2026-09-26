@@ -1,4 +1,4 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input, ChangeDetectionStrategy } from '@angular/core';
 import { Comunidad, NIVELES, SENSORES, Sensor } from '../../core/modelos/modelos';
 
 interface Marcador {
@@ -22,6 +22,7 @@ interface Marcador {
 @Component({
   selector: 'app-mapa-comunidad',
   templateUrl: './mapa-comunidad.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './mapa-comunidad.scss',
 })
 export class MapaComunidad {

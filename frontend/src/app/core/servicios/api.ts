@@ -8,20 +8,40 @@ import {
   Alerta,
   Comunidad,
   CrearSensor,
+  EstadisticasHistorial,
+  EstadoAlerta,
   EstadoComunidad,
   Evento,
   EstadoSensor,
+  GuardarComunidad,
+  GuardarRegla,
+  LecturaHistorica,
   NivelAlerta,
   Pagina,
   PlantillaSensor,
+  ReglaAlerta,
   RegistroUsuario,
   RegistroBitacora,
   ResumenDashboard,
+  RolUsuario,
   SerieHistorica,
   Sensor,
   TipoFenomeno,
+  TipoSensor,
   Usuario,
 } from '../modelos/modelos';
+
+/** Paginación común a los listados largos. */
+interface Paginado {
+  pagina?: number;
+  tamano?: number;
+}
+
+/** Rango de fechas en ISO 8601. */
+interface RangoFechas {
+  desde?: string;
+  hasta?: string;
+}
 
 /** Cliente HTTP de la API. Un único punto donde vive la forma de cada extremo. */
 @Injectable({ providedIn: 'root' })
@@ -54,12 +74,40 @@ export class Api {
     return this.http.get<ResumenDashboard>(`${this.base}/monitoreo/resumen`, { params });
   }
 
+  // --- Comunidades ---
+
+  listarComunidades(filtro: {
+    busqueda?: string;
+    activa?: boolean;
+    municipio?: string;
+    departamento?: string;
+  } = {}): Observable<Comunidad[]> {
+    return this.http.get<Comunidad[]>(`${this.base}/comunidades`, { params: this.aParams(filtro) });
+  }
+
+  crearComunidad(datos: GuardarComunidad): Observable<Comunidad> {
+    return this.http.post<Comunidad>(`${this.base}/comunidades`, datos);
+  }
+
+  actualizarComunidad(id: number, datos: GuardarComunidad): Observable<Comunidad> {
+    return this.http.put<Comunidad>(`${this.base}/comunidades/${id}`, datos);
+  }
+
+  cambiarEstadoComunidad(id: number, activa: boolean): Observable<Comunidad> {
+    return this.http.patch<Comunidad>(`${this.base}/comunidades/${id}/estado`, null, {
+      params: new HttpParams().set('activa', activa),
+    });
+  }
+
   // --- Sensores ---
 
-  sensores(comunidadId?: number): Observable<Sensor[]> {
-    let params = new HttpParams();
-    if (comunidadId !== undefined) params = params.set('comunidadId', comunidadId);
-    return this.http.get<Sensor[]>(`${this.base}/sensores`, { params });
+  sensores(filtro: {
+    comunidadId?: number;
+    tipo?: TipoSensor;
+    estado?: EstadoSensor;
+    codigo?: string;
+  } = {}): Observable<Sensor[]> {
+    return this.http.get<Sensor[]>(`${this.base}/sensores`, { params: this.aParams(filtro) });
   }
 
   plantillasSensor(): Observable<PlantillaSensor[]> {
@@ -88,6 +136,54 @@ export class Api {
     return this.http.delete<void>(`${this.base}/sensores/${id}`);
   }
 
+  // --- Lecturas ---
+
+  lecturas(
+    filtro: Paginado & RangoFechas & { sensorId?: number; comunidadId?: number; tipo?: TipoSensor },
+  ): Observable<Pagina<LecturaHistorica>> {
+    return this.http.get<Pagina<LecturaHistorica>>(`${this.base}/lecturas`, {
+      params: this.aParams(filtro),
+    });
+  }
+
+  registrarLectura(sensorId: number, valor: number): Observable<LecturaHistorica> {
+    return this.http.post<LecturaHistorica>(`${this.base}/lecturas`, { sensorId, valor });
+  }
+
+  eliminarLectura(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/lecturas/${id}`);
+  }
+
+  // --- Reglas de alerta ---
+
+  reglas(filtro: {
+    busqueda?: string;
+    tipoSensor?: TipoSensor;
+    fenomeno?: TipoFenomeno;
+    nivel?: NivelAlerta;
+    activa?: boolean;
+  } = {}): Observable<ReglaAlerta[]> {
+    return this.http.get<ReglaAlerta[]>(`${this.base}/reglas`, { params: this.aParams(filtro) });
+  }
+
+  crearRegla(regla: GuardarRegla): Observable<ReglaAlerta> {
+    return this.http.post<ReglaAlerta>(`${this.base}/reglas`, regla);
+  }
+
+  actualizarRegla(id: number, regla: GuardarRegla): Observable<ReglaAlerta> {
+    return this.http.put<ReglaAlerta>(`${this.base}/reglas/${id}`, regla);
+  }
+
+  cambiarEstadoRegla(id: number, activa: boolean): Observable<ReglaAlerta> {
+    return this.http.patch<ReglaAlerta>(`${this.base}/reglas/${id}/estado`, null, {
+      params: new HttpParams().set('activa', activa),
+    });
+  }
+
+  eliminarRegla(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/reglas/${id}`);
+  }
+
   // --- Alertas ---
 
   alertasActivas(comunidadId?: number): Observable<Alerta[]> {
@@ -96,50 +192,79 @@ export class Api {
     return this.http.get<Alerta[]>(`${this.base}/alertas/activas`, { params });
   }
 
-  alertas(opciones: {
-    pagina?: number;
-    tamano?: number;
-    comunidadId?: number;
-    nivel?: NivelAlerta;
-  }): Observable<Pagina<Alerta>> {
+  alertas(
+    opciones: Paginado &
+      RangoFechas & {
+        comunidadId?: number;
+        sensorId?: number;
+        fenomeno?: TipoFenomeno;
+        nivel?: NivelAlerta;
+        estado?: EstadoAlerta;
+      },
+  ): Observable<Pagina<Alerta>> {
     return this.http.get<Pagina<Alerta>>(`${this.base}/alertas`, {
       params: this.aParams(opciones),
     });
   }
 
-  reconocerAlerta(id: number): Observable<Alerta> {
-    return this.http.post<Alerta>(`${this.base}/alertas/${id}/reconocer`, null);
+  alerta(id: number): Observable<Alerta> {
+    return this.http.get<Alerta>(`${this.base}/alertas/${id}`);
+  }
+
+  atenderAlerta(id: number, comentario?: string): Observable<Alerta> {
+    return this.http.post<Alerta>(`${this.base}/alertas/${id}/atender`, { comentario });
+  }
+
+  cerrarAlerta(id: number, comentario?: string): Observable<Alerta> {
+    return this.http.post<Alerta>(`${this.base}/alertas/${id}/cerrar`, { comentario });
   }
 
   // --- Historial y bitácora ---
 
-  historial(opciones: {
-    pagina?: number;
-    tamano?: number;
-    comunidadId?: number;
-    fenomeno?: TipoFenomeno;
-    desde?: string;
-    hasta?: string;
-  }): Observable<Pagina<Evento>> {
+  historial(
+    opciones: Paginado &
+      RangoFechas & {
+        comunidadId?: number;
+        fenomeno?: TipoFenomeno;
+        nivel?: NivelAlerta;
+        estado?: EstadoAlerta;
+      },
+  ): Observable<Pagina<Evento>> {
     return this.http.get<Pagina<Evento>>(`${this.base}/historial`, {
       params: this.aParams(opciones),
     });
   }
 
-  bitacora(opciones: {
-    pagina?: number;
-    tamano?: number;
-    accion?: string;
-  }): Observable<Pagina<RegistroBitacora>> {
+  estadisticasHistorial(
+    opciones: RangoFechas & { comunidadId?: number; fenomeno?: TipoFenomeno; nivel?: NivelAlerta },
+  ): Observable<EstadisticasHistorial> {
+    return this.http.get<EstadisticasHistorial>(`${this.base}/historial/estadisticas`, {
+      params: this.aParams(opciones),
+    });
+  }
+
+  bitacora(
+    opciones: Paginado & RangoFechas & { usuario?: string; accion?: string; entidad?: string },
+  ): Observable<Pagina<RegistroBitacora>> {
     return this.http.get<Pagina<RegistroBitacora>>(`${this.base}/bitacora`, {
       params: this.aParams(opciones),
     });
   }
 
-  // --- Administración ---
+  catalogosBitacora(): Observable<{ acciones: string[]; entidades: string[] }> {
+    return this.http.get<{ acciones: string[]; entidades: string[] }>(
+      `${this.base}/bitacora/catalogos`,
+    );
+  }
 
-  usuarios(): Observable<Usuario[]> {
-    return this.http.get<Usuario[]>(`${this.base}/cuenta/usuarios`);
+  // --- Cuentas ---
+
+  cerrarSesion(): Observable<void> {
+    return this.http.post<void>(`${this.base}/cuenta/logout`, null);
+  }
+
+  usuarios(filtro: { busqueda?: string; rol?: RolUsuario; activo?: boolean } = {}): Observable<Usuario[]> {
+    return this.http.get<Usuario[]>(`${this.base}/cuenta/usuarios`, { params: this.aParams(filtro) });
   }
 
   crearUsuario(usuario: RegistroUsuario): Observable<Usuario> {
@@ -165,7 +290,7 @@ export class Api {
   }
 
   /** Convierte un objeto de filtros a query string omitiendo lo que no se especificó. */
-  private aParams(opciones: Record<string, unknown>): HttpParams {
+  private aParams(opciones: object): HttpParams {
     let params = new HttpParams();
 
     for (const [clave, valor] of Object.entries(opciones)) {

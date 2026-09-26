@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { Notificaciones } from '../../core/servicios/notificaciones';
 
 /**
@@ -26,6 +26,7 @@ import { Notificaciones } from '../../core/servicios/notificaciones';
       }
     </div>
   `,
+  changeDetection: ChangeDetectionStrategy.Eager,
   styles: `
     .avisos {
       position: fixed;

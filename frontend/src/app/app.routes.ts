@@ -34,9 +34,24 @@ export const routes: Routes = [
         loadComponent: () => import('./paginas/historial/historial').then((m) => m.Historial),
       },
       {
+        path: 'comunidades',
+        title: 'Comunidades — SWMATRC',
+        loadComponent: () => import('./paginas/comunidades/comunidades').then((m) => m.Comunidades),
+      },
+      {
         path: 'sensores',
         title: 'Sensores — SWMATRC',
         loadComponent: () => import('./paginas/sensores/sensores').then((m) => m.Sensores),
+      },
+      {
+        path: 'lecturas',
+        title: 'Lecturas — SWMATRC',
+        loadComponent: () => import('./paginas/lecturas/lecturas').then((m) => m.Lecturas),
+      },
+      {
+        path: 'reglas',
+        title: 'Reglas de alerta — SWMATRC',
+        loadComponent: () => import('./paginas/reglas/reglas').then((m) => m.Reglas),
       },
       {
         path: 'usuarios',

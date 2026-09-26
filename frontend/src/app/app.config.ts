@@ -1,6 +1,6 @@
 import { registerLocaleData } from '@angular/common';
 import localeEs from '@angular/common/locales/es';
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { provideHttpClient, withInterceptors, withXhr } from '@angular/common/http';
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { provideRouter, withComponentInputBinding, withInMemoryScrolling } from '@angular/router';
 import { routes } from './app.routes';
@@ -22,6 +22,6 @@ export const appConfig: ApplicationConfig = {
     ),
     // El orden importa: el token se adjunta antes de que el manejador de errores
     // pueda observar un 401 y cerrar la sesión.
-    provideHttpClient(withInterceptors([interceptorToken, interceptorErrores])),
+    provideHttpClient(withXhr(), withInterceptors([interceptorToken, interceptorErrores])),
   ],
 };
