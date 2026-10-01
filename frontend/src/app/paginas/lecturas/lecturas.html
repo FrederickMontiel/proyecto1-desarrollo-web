@@ -1,0 +1,156 @@
+<div class="panel-titulo">
+  <div>
+    <h1>Lecturas</h1>
+    <p class="texto-suave">
+      Muestras almacenadas de cada sensor. Alimentan los gráficos del tablero y la evaluación de reglas.
+    </p>
+  </div>
+</div>
+
+<!-- Registro manual -->
+@if (auth.puedeOperar()) {
+  <section class="tarjeta formulario">
+    <div class="panel-titulo">
+      <h2>Registrar lectura manual</h2>
+    </div>
+
+    <div class="filtros">
+      <div class="campo">
+        <label for="m-sensor">Sensor</label>
+        <select id="m-sensor" [(ngModel)]="sensorManual">
+          <option value="">Seleccione…</option>
+          @for (s of sensoresRegistrables(); track s.id) {
+            <option [ngValue]="s.id">{{ s.codigo }} — {{ s.comunidadNombre }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="campo">
+        <label for="m-valor">
+          Valor
+          @if (sensorElegido(); as s) {
+            <span class="texto-tenue">({{ s.valorMinimo }} a {{ s.valorMaximo }} {{ s.unidadMedida }})</span>
+          }
+        </label>
+        <input id="m-valor" type="number" step="any" [(ngModel)]="valorManual" (keyup.enter)="registrar()" />
+      </div>
+
+      <div class="filtros__acciones">
+        <button
+          class="boton boton--primario"
+          type="button"
+          [disabled]="sensorManual() === '' || valorManual() === null || registrando()"
+          (click)="registrar()">
+          {{ registrando() ? 'Registrando…' : 'Registrar' }}
+        </button>
+      </div>
+    </div>
+  </section>
+}
+
+<!-- Filtros -->
+<section class="tarjeta filtros">
+  <div class="campo">
+    <label for="f-comunidad">Comunidad</label>
+    <select id="f-comunidad" [(ngModel)]="comunidadFiltro" (ngModelChange)="alCambiarComunidad()">
+      <option value="">Todas</option>
+      @for (c of comunidades(); track c.id) {
+        <option [ngValue]="c.id">{{ c.nombre }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-sensor">Sensor</label>
+    <select id="f-sensor" [(ngModel)]="sensorFiltro" (ngModelChange)="aplicarFiltros()">
+      <option value="">Todos</option>
+      @for (s of sensoresFiltrados(); track s.id) {
+        <option [ngValue]="s.id">{{ s.codigo }} — {{ s.nombre }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-tipo">Tipo</label>
+    <select id="f-tipo" [(ngModel)]="tipoFiltro" (ngModelChange)="aplicarFiltros()">
+      <option value="">Todos</option>
+      @for (t of tipos; track t.valor) {
+        <option [value]="t.valor">{{ t.etiqueta }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="desde">Desde</label>
+    <input id="desde" type="datetime-local" [(ngModel)]="desde" />
+  </div>
+
+  <div class="campo">
+    <label for="hasta">Hasta</label>
+    <input id="hasta" type="datetime-local" [(ngModel)]="hasta" />
+  </div>
+
+  <div class="filtros__acciones">
+    <button class="boton boton--primario" type="button" (click)="aplicarFiltros()">Filtrar</button>
+    <button class="boton" type="button" (click)="limpiar()">Limpiar</button>
+  </div>
+</section>
+
+<!-- Listado -->
+<section class="tarjeta">
+  @if (cargando() && !datos()) {
+    <p class="vacio">Cargando lecturas…</p>
+  } @else if (!datos() || datos()!.elementos.length === 0) {
+    <p class="vacio">No hay lecturas con los criterios indicados.</p>
+  } @else {
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Hora</th>
+            <th>Sensor</th>
+            <th>Comunidad</th>
+            <th>Magnitud</th>
+            <th>Valor</th>
+            <th>Nivel</th>
+            <th>Estado del sensor</th>
+            @if (auth.puedeAdministrar()) {
+              <th></th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (lectura of datos()!.elementos; track lectura.id) {
+            <tr>
+              <td class="numero">{{ lectura.fechaHora | date: 'dd/MM/yyyy' }}</td>
+              <td class="numero">{{ lectura.fechaHora | date: 'HH:mm:ss' }}</td>
+              <td class="mono">{{ lectura.sensorCodigo }}</td>
+              <td>{{ lectura.comunidadNombre }}</td>
+              <td>
+                <span aria-hidden="true">{{ meta[lectura.tipo].icono }}</span>
+                {{ meta[lectura.tipo].etiqueta }}
+              </td>
+              <td class="numero">
+                <strong>{{ lectura.valor | number: '1.0-3' }}</strong> {{ lectura.unidadMedida }}
+              </td>
+              <td>
+                <span class="insignia" [class]="'nivel-' + lectura.nivel.toLowerCase()">{{ lectura.nivel }}</span>
+              </td>
+              <td class="texto-tenue">{{ lectura.estadoSensor }}</td>
+              @if (auth.puedeAdministrar()) {
+                <td>
+                  <button class="boton boton--sm boton--peligro" type="button" (click)="eliminar(lectura)">
+                    Eliminar
+                  </button>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <app-paginador [pagina]="datos()!" unidad="lecturas" (cambiar)="irA($event)" />
+  }
+</section>

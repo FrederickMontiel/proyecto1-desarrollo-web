@@ -1,19 +1,47 @@
 <div class="panel-titulo">
   <div>
     <h1>Historial de eventos</h1>
-    <p class="texto-suave">
-      Registro de los incidentes detectados en {{ estado.comunidadActiva()?.nombre }}.
-    </p>
+    <p class="texto-suave">Registro de los eventos de riesgo detectados en las comunidades.</p>
   </div>
 </div>
 
 <section class="tarjeta filtros">
+  <div class="campo">
+    <label for="comunidad">Comunidad</label>
+    <select id="comunidad" [(ngModel)]="comunidadFiltro">
+      <option value="">Todas</option>
+      @for (c of comunidades(); track c.id) {
+        <option [ngValue]="c.id">{{ c.nombre }}</option>
+      }
+    </select>
+  </div>
+
   <div class="campo">
     <label for="fenomeno">Fenómeno</label>
     <select id="fenomeno" [(ngModel)]="fenomenoFiltro">
       <option value="">Todos</option>
       @for (f of fenomenos; track f.valor) {
         <option [value]="f.valor">{{ f.icono }} {{ f.etiqueta }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="nivel">Nivel</label>
+    <select id="nivel" [(ngModel)]="nivelFiltro">
+      <option value="">Todos</option>
+      @for (n of niveles; track n) {
+        <option [value]="n">{{ n }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="estado">Estado</label>
+    <select id="estado" [(ngModel)]="estadoFiltro">
+      <option value="">Todos</option>
+      @for (e of estados; track e) {
+        <option [value]="e">{{ estadoMeta[e].etiqueta }}</option>
       }
     </select>
   </div>
@@ -34,18 +62,64 @@
   </div>
 </section>
 
-@if (recuento().length > 0) {
-  <div class="recuento">
-    @for (r of recuento(); track r.valor) {
-      <span class="insignia recuento__item">
-        <span aria-hidden="true">{{ r.icono }}</span> {{ r.etiqueta }}: {{ r.total }}
-      </span>
+<!-- Estadísticas sobre el mismo filtro -->
+@if (estadisticas(); as e) {
+  <section class="estadisticas">
+    <div class="tarjeta indicador">
+      <span class="texto-tenue">Eventos</span>
+      <strong class="cifra">{{ e.totalEventos }}</strong>
+    </div>
+    <div class="tarjeta indicador">
+      <span class="texto-tenue">En curso</span>
+      <strong class="cifra">{{ e.eventosAbiertos }}</strong>
+    </div>
+    <div class="tarjeta indicador">
+      <span class="texto-tenue">Duración promedio</span>
+      <strong class="cifra">{{ duracion(e.duracionPromedioMinutos) }}</strong>
+    </div>
+
+    @if (e.totalEventos > 0) {
+      <div class="tarjeta grupo">
+        <h3>Por fenómeno</h3>
+        @for (item of e.porFenomeno | keyvalue; track item.key) {
+          <div class="barra">
+            <span class="barra__etiqueta">{{ etiquetaFenomeno(item.key) }}</span>
+            <span class="barra__pista"><span class="barra__relleno" [style.width.%]="proporcion(item.value, e.porFenomeno)"></span></span>
+            <span class="cifra">{{ item.value }}</span>
+          </div>
+        }
+      </div>
+
+      <div class="tarjeta grupo">
+        <h3>Por nivel</h3>
+        @for (item of e.porNivel | keyvalue; track item.key) {
+          <div class="barra">
+            <span class="barra__etiqueta">{{ item.key }}</span>
+            <span class="barra__pista">
+              <span class="barra__relleno" [class]="'barra__relleno nivel-' + item.key.toLowerCase()"
+                [style.width.%]="proporcion(item.value, e.porNivel)"></span>
+            </span>
+            <span class="cifra">{{ item.value }}</span>
+          </div>
+        }
+      </div>
+
+      <div class="tarjeta grupo">
+        <h3>Por comunidad</h3>
+        @for (item of e.porComunidad | keyvalue; track item.key) {
+          <div class="barra">
+            <span class="barra__etiqueta">{{ item.key }}</span>
+            <span class="barra__pista"><span class="barra__relleno" [style.width.%]="proporcion(item.value, e.porComunidad)"></span></span>
+            <span class="cifra">{{ item.value }}</span>
+          </div>
+        }
+      </div>
     }
-  </div>
+  </section>
 }
 
 <section class="tarjeta">
-  @if (cargando()) {
+  @if (cargando() && !datos()) {
     <p class="vacio">Cargando historial…</p>
   } @else if (!datos() || datos()!.elementos.length === 0) {
     <p class="vacio">No se registraron eventos con los criterios indicados.</p>
@@ -54,24 +128,27 @@
       <table class="tabla">
         <thead>
           <tr>
-            <th>Inicio</th>
-            <th>Fin</th>
+            <th>Fecha</th>
+            <th>Hora</th>
             <th>Duración</th>
+            <th>Comunidad</th>
+            <th>Sensor</th>
             <th>Fenómeno</th>
             <th>Nivel máx.</th>
-            <th>Origen</th>
             <th>Valor</th>
             <th>Descripción</th>
+            <th>Estado</th>
+            <th>Responsable</th>
           </tr>
         </thead>
         <tbody>
           @for (evento of datos()!.elementos; track evento.id) {
             <tr>
-              <td class="numero">{{ evento.fechaInicio | date: 'dd/MM/yy HH:mm:ss' }}</td>
-              <td class="numero">
-                {{ evento.fechaFin ? (evento.fechaFin | date: 'dd/MM/yy HH:mm:ss') : '—' }}
-              </td>
-              <td class="numero">{{ duracion(evento) }}</td>
+              <td class="numero">{{ evento.fechaInicio | date: 'dd/MM/yy' }}</td>
+              <td class="numero">{{ evento.fechaInicio | date: 'HH:mm:ss' }}</td>
+              <td class="numero">{{ duracion(evento.duracionMinutos) }}</td>
+              <td>{{ evento.comunidadNombre }}</td>
+              <td class="mono">{{ evento.origenSensor }}</td>
               <td>
                 <span aria-hidden="true">{{ meta(evento).icono }}</span>
                 {{ meta(evento).etiqueta }}
@@ -81,38 +158,22 @@
                   {{ evento.nivelMaximo }}
                 </span>
               </td>
-              <td class="mono">{{ evento.origenSensor }}</td>
               <td class="numero">
                 {{ evento.valorRegistrado !== null ? (evento.valorRegistrado | number: '1.1-1') : '—' }}
               </td>
               <td class="descripcion">{{ evento.descripcion }}</td>
+              <td>
+                <span class="insignia" [class]="estadoMeta[evento.estado].clase">
+                  {{ estadoMeta[evento.estado].etiqueta }}
+                </span>
+              </td>
+              <td class="texto-tenue">{{ evento.usuarioResponsable ?? '—' }}</td>
             </tr>
           }
         </tbody>
       </table>
     </div>
 
-    <nav class="paginacion" aria-label="Paginación del historial">
-      <button
-        class="boton boton--sm"
-        type="button"
-        [disabled]="datos()!.pagina <= 1"
-        (click)="irA(datos()!.pagina - 1)">
-        ← Anterior
-      </button>
-
-      <span class="texto-tenue">
-        Página {{ datos()!.pagina }} de {{ datos()!.totalPaginas }}
-        · {{ datos()!.totalElementos }} eventos
-      </span>
-
-      <button
-        class="boton boton--sm"
-        type="button"
-        [disabled]="datos()!.pagina >= datos()!.totalPaginas"
-        (click)="irA(datos()!.pagina + 1)">
-        Siguiente →
-      </button>
-    </nav>
+    <app-paginador [pagina]="datos()!" unidad="eventos" (cambiar)="irA($event)" />
   }
 </section>

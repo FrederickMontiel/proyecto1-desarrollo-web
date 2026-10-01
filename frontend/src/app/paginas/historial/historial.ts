@@ -1,19 +1,35 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { DatePipe, DecimalPipe, KeyValuePipe } from '@angular/common';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
-import { Evento, FENOMENOS, Pagina, TipoFenomeno } from '../../core/modelos/modelos';
+import { Paginador } from '../../componentes/paginador/paginador';
+import {
+  Comunidad,
+  ESTADOS_ALERTA,
+  EstadisticasHistorial,
+  EstadoAlerta,
+  Evento,
+  FENOMENOS,
+  FENOMENOS_PROTOCOLO,
+  NIVELES,
+  NivelAlerta,
+  Pagina,
+  TipoFenomeno,
+  fechaIso,
+} from '../../core/modelos/modelos';
 import { Api } from '../../core/servicios/api';
 import { EstadoMonitoreo } from '../../core/servicios/estado-monitoreo';
 
 /**
  * Historial de incidentes. Cada fila es un episodio completo —desde que se detectó el
- * riesgo hasta que las condiciones se normalizaron—, no una lectura suelta.
+ * riesgo hasta que las condiciones se normalizaron o alguien lo cerró—, no una lectura
+ * suelta. Las estadísticas se calculan en el servidor sobre el mismo filtro que la tabla.
  */
 @Component({
   selector: 'app-historial',
-  imports: [DatePipe, DecimalPipe, FormsModule],
+  imports: [DatePipe, DecimalPipe, KeyValuePipe, FormsModule, Paginador],
   templateUrl: './historial.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './historial.scss',
 })
 export class Historial implements OnInit {
@@ -21,52 +37,53 @@ export class Historial implements OnInit {
   protected readonly estado = inject(EstadoMonitoreo);
 
   protected readonly datos = signal<Pagina<Evento> | null>(null);
+  protected readonly estadisticas = signal<EstadisticasHistorial | null>(null);
   protected readonly cargando = signal(false);
+  protected readonly comunidades = signal<Comunidad[]>([]);
 
   protected readonly pagina = signal(1);
+  protected readonly comunidadFiltro = signal<number | ''>('');
   protected readonly fenomenoFiltro = signal<TipoFenomeno | ''>('');
+  protected readonly nivelFiltro = signal<NivelAlerta | ''>('');
+  protected readonly estadoFiltro = signal<EstadoAlerta | ''>('');
   protected readonly desde = signal('');
   protected readonly hasta = signal('');
 
-  /** Los cinco fenómenos del protocolo; se excluye el valor neutro del enumerado. */
-  protected readonly fenomenos = (Object.keys(FENOMENOS) as TipoFenomeno[])
-    .filter((f) => f !== 'Ninguno')
-    .map((f) => ({ valor: f, ...FENOMENOS[f] }));
+  protected readonly fenomenos = FENOMENOS_PROTOCOLO.map((f) => ({ valor: f, ...FENOMENOS[f] }));
+  protected readonly niveles = Object.keys(NIVELES) as NivelAlerta[];
+  protected readonly estados = Object.keys(ESTADOS_ALERTA) as EstadoAlerta[];
+  protected readonly estadoMeta = ESTADOS_ALERTA;
 
-  /** Recuento por fenómeno de la página en pantalla, para el resumen superior. */
-  protected readonly recuento = computed(() => {
-    const elementos = this.datos()?.elementos ?? [];
-
-    return this.fenomenos
-      .map((f) => ({
-        ...f,
-        total: elementos.filter((e) => e.fenomeno === f.valor).length,
-      }))
-      .filter((f) => f.total > 0);
-  });
 
   async ngOnInit(): Promise<void> {
+    this.comunidades.set(await firstValueFrom(this.api.listarComunidades()));
+    this.comunidadFiltro.set(this.estado.comunidadActiva()?.id ?? '');
     await this.cargar();
+  }
+
+  private filtro() {
+    return {
+      comunidadId: this.comunidadFiltro() || undefined,
+      fenomeno: this.fenomenoFiltro() || undefined,
+      nivel: this.nivelFiltro() || undefined,
+      estado: this.estadoFiltro() || undefined,
+      desde: fechaIso(this.desde()),
+      hasta: fechaIso(this.hasta()),
+    };
   }
 
   protected async cargar(): Promise<void> {
     this.cargando.set(true);
+    const filtro = this.filtro();
 
     try {
-      const resultado = await firstValueFrom(
-        this.api.historial({
-          pagina: this.pagina(),
-          tamano: 20,
-          comunidadId: this.estado.comunidadActiva()?.id,
-          fenomeno: this.fenomenoFiltro() || undefined,
-          // El control de fecha entrega hora local; se envía en ISO para que el servidor
-          // la interprete sin ambigüedad de zona horaria.
-          desde: this.desde() ? new Date(this.desde()).toISOString() : undefined,
-          hasta: this.hasta() ? new Date(this.hasta()).toISOString() : undefined,
-        }),
-      );
+      const [pagina, estadisticas] = await Promise.all([
+        firstValueFrom(this.api.historial({ ...filtro, pagina: this.pagina(), tamano: 20 })),
+        firstValueFrom(this.api.estadisticasHistorial(filtro)),
+      ]);
 
-      this.datos.set(resultado);
+      this.datos.set(pagina);
+      this.estadisticas.set(estadisticas);
     } finally {
       this.cargando.set(false);
     }
@@ -78,7 +95,10 @@ export class Historial implements OnInit {
   }
 
   protected async limpiar(): Promise<void> {
+    this.comunidadFiltro.set('');
     this.fenomenoFiltro.set('');
+    this.nivelFiltro.set('');
+    this.estadoFiltro.set('');
     this.desde.set('');
     this.hasta.set('');
     await this.aplicarFiltros();
@@ -93,11 +113,21 @@ export class Historial implements OnInit {
     return FENOMENOS[evento.fenomeno];
   }
 
-  /** Duración legible del episodio; los que siguen abiertos se marcan como en curso. */
-  protected duracion(evento: Evento): string {
-    if (evento.duracionMinutos === null) return 'En curso';
+  protected etiquetaFenomeno(clave: string): string {
+    return FENOMENOS[clave as TipoFenomeno]?.etiqueta ?? clave;
+  }
 
-    const minutos = Math.round(evento.duracionMinutos);
+  /** Ancho relativo de una barra de las estadísticas, frente al mayor de su grupo. */
+  protected proporcion(valor: number, grupo: Record<string, number>): number {
+    const maximo = Math.max(...Object.values(grupo), 1);
+    return Math.round((valor / maximo) * 100);
+  }
+
+  /** Duración legible del episodio; los que siguen abiertos se marcan como en curso. */
+  protected duracion(minutosTotales: number | null): string {
+    if (minutosTotales === null) return 'En curso';
+
+    const minutos = Math.round(minutosTotales);
     if (minutos < 1) return 'menos de 1 min';
     if (minutos < 60) return `${minutos} min`;
 

@@ -1,0 +1,217 @@
+<div class="panel-titulo">
+  <div>
+    <h1>Comunidades</h1>
+    <p class="texto-suave">
+      Localidades monitoreadas. Una comunidad desactivada deja de generar lecturas y alertas.
+    </p>
+  </div>
+
+  @if (auth.puedeAdministrar()) {
+    <button class="boton boton--primario" type="button" (click)="abrirAlta()">
+      + Nueva comunidad
+    </button>
+  }
+</div>
+
+<!-- Formulario de alta y edición -->
+@if (formularioAbierto()) {
+  <section class="tarjeta formulario">
+    <div class="panel-titulo">
+      <h2>{{ editando() ? 'Editar ' + editando()!.nombre : 'Nueva comunidad' }}</h2>
+      <button class="boton boton--sm" type="button" (click)="cerrar()">Cancelar</button>
+    </div>
+
+    <form [formGroup]="formulario" (ngSubmit)="guardar()">
+      <div class="rejilla-campos">
+        <div class="campo">
+          <label for="nombre">Nombre</label>
+          <input id="nombre" formControlName="nombre" placeholder="San Miguel del Río" />
+          @if (formulario.controls.nombre.touched && formulario.controls.nombre.invalid) {
+            <small class="error-campo">El nombre es obligatorio.</small>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="municipio">Municipio</label>
+          <input id="municipio" formControlName="municipio" />
+          @if (formulario.controls.municipio.touched && formulario.controls.municipio.invalid) {
+            <small class="error-campo">El municipio es obligatorio.</small>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="departamento">Departamento</label>
+          <input id="departamento" formControlName="departamento" />
+          @if (formulario.controls.departamento.touched && formulario.controls.departamento.invalid) {
+            <small class="error-campo">El departamento es obligatorio.</small>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="pais">País</label>
+          <input id="pais" formControlName="pais" />
+        </div>
+
+        <div class="campo">
+          <label for="latitud">Latitud</label>
+          <input id="latitud" type="number" step="0.000001" formControlName="latitud" />
+          @if (formulario.controls.latitud.invalid) {
+            <small class="error-campo">Entre -90 y 90.</small>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="longitud">Longitud</label>
+          <input id="longitud" type="number" step="0.000001" formControlName="longitud" />
+          @if (formulario.controls.longitud.invalid) {
+            <small class="error-campo">Entre -180 y 180.</small>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="poblacion">Población estimada</label>
+          <input id="poblacion" type="number" min="0" formControlName="poblacion" />
+        </div>
+
+        <div class="campo">
+          <label for="activa">Estado</label>
+          <select id="activa" formControlName="activa">
+            <option [ngValue]="true">Activa</option>
+            <option [ngValue]="false">Inactiva</option>
+          </select>
+        </div>
+
+        <div class="campo campo--ancho">
+          <label for="descripcion">Descripción</label>
+          <textarea id="descripcion" rows="2" formControlName="descripcion"
+            placeholder="Riesgos principales, accesos, puntos de referencia…"></textarea>
+        </div>
+      </div>
+
+      <div class="formulario__acciones">
+        <button class="boton boton--primario" type="submit" [disabled]="guardando()">
+          {{ guardando() ? 'Guardando…' : editando() ? 'Guardar cambios' : 'Crear comunidad' }}
+        </button>
+        <button class="boton" type="button" (click)="cerrar()">Cancelar</button>
+      </div>
+    </form>
+  </section>
+}
+
+<!-- Filtros -->
+<section class="tarjeta filtros">
+  <div class="campo">
+    <label for="busqueda">Buscar</label>
+    <input id="busqueda" type="search" [(ngModel)]="busqueda" (keyup.enter)="cargar()"
+      placeholder="Nombre, municipio, país…" />
+  </div>
+
+  <div class="campo">
+    <label for="f-estado">Estado</label>
+    <select id="f-estado" [(ngModel)]="estadoFiltro" (ngModelChange)="cargar()">
+      <option value="">Todas</option>
+      <option value="true">Activas</option>
+      <option value="false">Inactivas</option>
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-municipio">Municipio</label>
+    <select id="f-municipio" [(ngModel)]="municipioFiltro" (ngModelChange)="cargar()">
+      <option value="">Todos</option>
+      @for (m of municipios(); track m) {
+        <option [value]="m">{{ m }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-departamento">Departamento</label>
+    <select id="f-departamento" [(ngModel)]="departamentoFiltro" (ngModelChange)="cargar()">
+      <option value="">Todos</option>
+      @for (d of departamentos(); track d) {
+        <option [value]="d">{{ d }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="filtros__acciones">
+    <button class="boton boton--primario" type="button" (click)="cargar()">Buscar</button>
+    <button class="boton" type="button" (click)="limpiar()">Limpiar</button>
+  </div>
+</section>
+
+<!-- Listado -->
+<section class="tarjeta">
+  @if (cargando()) {
+    <p class="vacio">Cargando comunidades…</p>
+  } @else if (comunidades().length === 0) {
+    <p class="vacio">No hay comunidades que coincidan con los filtros.</p>
+  } @else {
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Municipio</th>
+            <th>Departamento</th>
+            <th>País</th>
+            <th>Coordenadas</th>
+            <th>Sensores</th>
+            <th>Estado</th>
+            <th>Alta</th>
+            @if (auth.puedeAdministrar()) {
+              <th class="centrado">Acciones</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (comunidad of comunidades(); track comunidad.id) {
+            <tr [class.fila-inactiva]="!comunidad.activa">
+              <td>
+                <strong>{{ comunidad.nombre }}</strong>
+                @if (comunidad.descripcion) {
+                  <div class="texto-tenue">{{ comunidad.descripcion }}</div>
+                }
+              </td>
+              <td>{{ comunidad.municipio }}</td>
+              <td>{{ comunidad.departamento }}</td>
+              <td>{{ comunidad.pais }}</td>
+              <td class="mono">
+                {{ comunidad.latitud | number: '1.4-4' }}, {{ comunidad.longitud | number: '1.4-4' }}
+              </td>
+              <td class="numero">
+                <strong>{{ comunidad.totalSensores }}</strong>
+                <span class="texto-tenue"> ({{ comunidad.sensoresActivos }} activos)</span>
+              </td>
+              <td>
+                @if (comunidad.activa) {
+                  <span class="insignia nivel-verde">Activa</span>
+                } @else {
+                  <span class="insignia">Inactiva</span>
+                }
+              </td>
+              <td class="numero texto-tenue">{{ comunidad.fechaCreacion | date: 'dd/MM/yy' }}</td>
+              @if (auth.puedeAdministrar()) {
+                <td>
+                  <div class="acciones">
+                    <button class="boton boton--sm" type="button" (click)="abrirEdicion(comunidad)">
+                      Editar
+                    </button>
+                    <button
+                      class="boton boton--sm"
+                      [class.boton--peligro]="comunidad.activa"
+                      type="button"
+                      (click)="alternarEstado(comunidad)">
+                      {{ comunidad.activa ? 'Desactivar' : 'Activar' }}
+                    </button>
+                  </div>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

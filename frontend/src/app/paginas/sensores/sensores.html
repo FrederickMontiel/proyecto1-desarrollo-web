@@ -2,8 +2,8 @@
   <div>
     <h1>Sensores</h1>
     <p class="texto-suave">
-      Red de monitoreo de {{ estado.comunidadActiva()?.nombre }} ·
-      {{ estado.sensoresActivos().length }} de {{ estado.sensores().length }} en servicio.
+      Red de monitoreo · {{ activos() }} de {{ sensores().length }} sensores listados en servicio.
+      Los sensores desactivados no generan lecturas ni alertas.
     </p>
   </div>
 
@@ -18,12 +18,25 @@
 @if (formularioAbierto()) {
   <section class="tarjeta formulario">
     <div class="panel-titulo">
-      <h2>{{ editando() ? 'Editar sensor ' + editando()!.codigo : 'Nuevo sensor simulado' }}</h2>
+      <h2>{{ editando() ? 'Editar sensor ' + editando()!.codigo : 'Nuevo sensor' }}</h2>
       <button class="boton boton--sm" type="button" (click)="cerrar()">Cancelar</button>
     </div>
 
     <form [formGroup]="formulario" (ngSubmit)="guardar()">
       <div class="rejilla-campos">
+        <div class="campo">
+          <label for="comunidad">Comunidad</label>
+          <select id="comunidad" formControlName="comunidadId">
+            <option [ngValue]="0" disabled>Seleccione…</option>
+            @for (c of comunidades(); track c.id) {
+              <option [ngValue]="c.id">{{ c.nombre }}{{ c.activa ? '' : ' (inactiva)' }}</option>
+            }
+          </select>
+          @if (formulario.controls.comunidadId.touched && formulario.controls.comunidadId.invalid) {
+            <small class="error-campo">Seleccione la comunidad.</small>
+          }
+        </div>
+
         <div class="campo">
           <label for="codigo">Código</label>
           <input id="codigo" formControlName="codigo" placeholder="TEMP-11" />
@@ -36,17 +49,37 @@
 
         <div class="campo">
           <label for="tipo">Magnitud</label>
-          <select id="tipo" formControlName="tipo" (change)="alCambiarTipo($event)" [attr.disabled]="editando() ? true : null">
-            @for (t of tipos(); track t.valor) {
+          <select id="tipo" formControlName="tipo" (change)="alCambiarTipo($event)">
+            @for (t of tipos; track t.valor) {
               <option [value]="t.valor">{{ t.icono }} {{ t.etiqueta }}</option>
             }
           </select>
         </div>
 
         <div class="campo">
-          <label for="unidad">Unidad</label>
+          <label for="unidad">Unidad de medida</label>
           <input id="unidad" formControlName="unidadMedida" />
         </div>
+
+        <div class="campo">
+          <label for="ubicacion">Ubicación</label>
+          <input id="ubicacion" formControlName="ubicacion" placeholder="Puente de la entrada" />
+        </div>
+
+        <div class="campo">
+          <label for="instalacion">Fecha de instalación</label>
+          <input id="instalacion" type="date" formControlName="fechaInstalacion" />
+        </div>
+
+        @if (!editando()) {
+          <div class="campo">
+            <label for="estado-inicial">Estado</label>
+            <select id="estado-inicial" formControlName="estado">
+              <option value="Activo">Activo</option>
+              <option value="Inactivo">Inactivo</option>
+            </select>
+          </div>
+        }
 
         <div class="campo">
           <label for="minimo">Valor mínimo</label>
@@ -69,6 +102,11 @@
             <input id="inicial" type="number" step="any" formControlName="valorInicial" />
           </div>
         }
+
+        <div class="campo campo--ancho">
+          <label for="descripcion">Descripción</label>
+          <textarea id="descripcion" rows="2" formControlName="descripcion"></textarea>
+        </div>
       </div>
 
       <fieldset class="umbrales">
@@ -117,16 +155,62 @@
   </section>
 }
 
+<!-- Filtros -->
+<section class="tarjeta filtros">
+  <div class="campo">
+    <label for="f-comunidad">Comunidad</label>
+    <select id="f-comunidad" [(ngModel)]="comunidadFiltro" (ngModelChange)="cargar()">
+      <option value="">Todas</option>
+      @for (c of comunidades(); track c.id) {
+        <option [ngValue]="c.id">{{ c.nombre }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-tipo">Tipo</label>
+    <select id="f-tipo" [(ngModel)]="tipoFiltro" (ngModelChange)="cargar()">
+      <option value="">Todos</option>
+      @for (t of tipos; track t.tipo) {
+        <option [value]="t.tipo">{{ t.etiqueta }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-estado">Estado</label>
+    <select id="f-estado" [(ngModel)]="estadoFiltro" (ngModelChange)="cargar()">
+      <option value="">Todos</option>
+      <option value="Activo">Activo</option>
+      <option value="Inactivo">Inactivo</option>
+      <option value="SinSenal">Sin señal</option>
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-codigo">Código</label>
+    <input id="f-codigo" type="search" [(ngModel)]="codigoFiltro" (keyup.enter)="cargar()" placeholder="TEMP-01" />
+  </div>
+
+  <div class="filtros__acciones">
+    <button class="boton boton--primario" type="button" (click)="cargar()">Buscar</button>
+    <button class="boton" type="button" (click)="limpiar()">Limpiar</button>
+  </div>
+</section>
+
 <!-- Inventario -->
 <section class="tarjeta">
-  @if (estado.sensores().length === 0) {
-    <p class="vacio">Esta comunidad todavía no tiene sensores registrados.</p>
+  @if (cargando() && sensores().length === 0) {
+    <p class="vacio">Cargando sensores…</p>
+  } @else if (sensores().length === 0) {
+    <p class="vacio">No hay sensores que coincidan con los filtros.</p>
   } @else {
     <div class="tabla-scroll">
       <table class="tabla">
         <thead>
           <tr>
             <th>Código</th>
+            <th>Comunidad</th>
             <th>Magnitud</th>
             <th>Valor actual</th>
             <th>Nivel</th>
@@ -138,9 +222,16 @@
           </tr>
         </thead>
         <tbody>
-          @for (sensor of estado.sensores(); track sensor.id) {
+          @for (sensor of sensores(); track sensor.id) {
             <tr [class.fila-inactiva]="sensor.estado !== 'Activo'">
-              <td class="mono">{{ sensor.codigo }}</td>
+              <td>
+                <span class="mono">{{ sensor.codigo }}</span>
+                <div class="texto-tenue">{{ sensor.nombre }}</div>
+                @if (sensor.ubicacion) {
+                  <div class="texto-tenue">📍 {{ sensor.ubicacion }}</div>
+                }
+              </td>
+              <td>{{ sensor.comunidadNombre }}</td>
               <td>
                 <span aria-hidden="true">{{ meta[sensor.tipo].icono }}</span>
                 {{ meta[sensor.tipo].etiqueta }}
@@ -165,24 +256,26 @@
                 }
               </td>
               <td class="numero texto-tenue">
-                {{ sensor.ultimaLectura ? (sensor.ultimaLectura | date: 'HH:mm:ss') : '—' }}
+                {{ sensor.ultimaLectura ? (sensor.ultimaLectura | date: 'dd/MM HH:mm:ss') : '—' }}
               </td>
               <td>
-                @if (sensor.estado === 'Activo') {
-                  <span class="insignia nivel-verde">Activo</span>
-                } @else {
-                  <span class="insignia">Inactivo</span>
+                @switch (sensor.estado) {
+                  @case ('Activo') { <span class="insignia nivel-verde">Activo</span> }
+                  @case ('SinSenal') { <span class="insignia nivel-naranja">Sin señal</span> }
+                  @default { <span class="insignia">Inactivo</span> }
                 }
               </td>
               <td>
                 <div class="acciones">
                   @if (auth.puedeOperar()) {
                     <button class="boton boton--sm" type="button" (click)="alternarEstado(sensor)">
-                      {{ sensor.estado === 'Activo' ? 'Desactivar' : 'Activar' }}
+                      {{ sensor.estado === 'Inactivo' ? 'Activar' : 'Desactivar' }}
                     </button>
-                    <button class="boton boton--sm" type="button" (click)="establecerValor(sensor)">
-                      Fijar valor
-                    </button>
+                    @if (sensor.estado !== 'Inactivo') {
+                      <button class="boton boton--sm" type="button" (click)="establecerValor(sensor)">
+                        Fijar valor
+                      </button>
+                    }
                   }
                   @if (auth.puedeAdministrar()) {
                     <button class="boton boton--sm" type="button" (click)="abrirEdicion(sensor)">

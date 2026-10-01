@@ -1,49 +1,70 @@
-.filtros {
+/* Indicadores y distribuciones sobre el filtro activo. */
+.estadisticas {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 0.85rem;
-  align-items: end;
   margin-bottom: 1rem;
 }
 
-.filtros__acciones {
+.indicador {
   display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.indicador .cifra {
+  font-size: 1.5rem;
+}
+
+.grupo {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.grupo h3 {
+  margin-bottom: 0.3rem;
+}
+
+.barra {
+  display: grid;
+  grid-template-columns: minmax(110px, 40%) 1fr 2.5rem;
+  align-items: center;
   gap: 0.5rem;
+  font-size: 0.82rem;
 }
 
-.recuento {
-  display: flex;
-  gap: 0.45rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.recuento__item {
-  border-color: var(--borde);
-  color: var(--texto-suave);
-  background: var(--superficie);
-}
-
-.descripcion {
-  max-width: 400px;
-  min-width: 240px;
-  color: var(--texto-suave);
-  font-size: 0.85rem;
-}
-
-.mono {
-  font-family: var(--fuente-mono);
-  font-size: 0.78rem;
+.barra__etiqueta {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.paginacion {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-top: 1rem;
-  padding-top: 0.9rem;
-  border-top: 1px solid var(--borde-suave);
+.barra__pista {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--fondo-alt);
+  overflow: hidden;
+}
+
+.barra__relleno {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primario);
+}
+
+/* Las clases nivel-* globales pintan texto y borde; aquí se usa su color de fondo sólido. */
+.barra__relleno.nivel-verde { background: var(--verde); }
+.barra__relleno.nivel-amarillo { background: var(--amarillo); }
+.barra__relleno.nivel-naranja { background: var(--naranja); }
+.barra__relleno.nivel-rojo { background: var(--rojo); }
+
+.barra .cifra {
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .grupo { grid-column: 1 / -1; }
 }
