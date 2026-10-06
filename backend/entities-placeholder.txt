@@ -1,4 +1,0 @@
-// User entity
-// Product entity
-// Order entity
-// Category entity

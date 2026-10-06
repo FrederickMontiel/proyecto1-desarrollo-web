@@ -36,7 +36,7 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
-La aplicación queda en **http://localhost:8080**.
+La aplicación queda en **http://localhost:10001**.
 
 El primer arranque tarda uno o dos minutos: SQL Server inicializa sus archivos, la API
 espera a que el motor responda, aplica las migraciones y carga los datos iniciales.
@@ -141,7 +141,7 @@ frontend/src/app/
 └── paginas/            Login, dashboard, alertas, historial, sensores, bitácora
 ```
 
-Angular 21 con componentes autónomos, señales y sin `zone.js`. Cada página se carga de
+Angular 22 con componentes autónomos, señales y sin `zone.js`. Cada página se carga de
 forma diferida: el paquete inicial pesa unos 81 kB comprimidos.
 
 `EstadoMonitoreo` es la única fuente de verdad del tablero. La carga inicial llega por
@@ -324,33 +324,36 @@ chmod 600 .env
 docker compose up -d --build
 ```
 
-Publicar la aplicación con TLS mediante un proxy inverso (Caddy resuelve el certificado
-solo):
+Los archivos de apoyo para la VPS están en [`infra/`](infra/). El contenedor web se publica
+solo en `127.0.0.1:10001` (`IP_PUBLICACION` en `.env`): Docker publica los puertos saltándose
+UFW, así que abrirlo en todas las interfaces lo dejaría expuesto aunque el cortafuegos lo
+bloquee.
 
-```caddy
-monitoreo.ejemplo.org {
-    reverse_proxy localhost:8080
-}
-```
-
-Con TLS activo, ajustar en `.env`:
+**Dominio y HTTPS (Nginx + Let's Encrypt).** [`infra/nginx-vps.conf.example`](infra/nginx-vps.conf.example)
+es el sitio de Nginx que reenvía el tráfico al contenedor, incluido el WebSocket del canal
+en tiempo real. Las instrucciones de instalación y de `certbot --nginx` están en su
+encabezado. Con TLS activo, ajustar en `.env`:
 
 ```
 CORS_ORIGEN=https://monitoreo.ejemplo.org
 ```
 
-Cortafuegos: abrir 80 y 443. **No** abrir 1433 ni 5080; con el `docker-compose.yml` de
-producción esos puertos ni siquiera se publican.
+**Cortafuegos.** `sudo bash infra/firewall.sh` deja abiertos solo SSH (con límite de
+intentos), 80 y 443, y avisa si algún contenedor publica puertos en una interfaz pública.
+SQL Server nunca se publica en producción.
 
-Respaldo de la base de datos:
+**Respaldos.** `bash infra/respaldo.sh` genera un respaldo completo con `CHECKSUM`, lo
+verifica, lo guarda comprimido en `/var/backups/swmatrc` y borra los de más de 14 días
+(`DESTINO_RESPALDOS` y `RETENCION_DIAS` lo cambian). Para programarlo cada noche, ver
+[`infra/cron.example`](infra/cron.example). Para volver a un respaldo:
 
 ```bash
-docker compose exec db /opt/mssql-tools18/bin/sqlcmd \
-  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C \
-  -Q "BACKUP DATABASE SwmatrcDb TO DISK='/var/opt/mssql/data/swmatrc.bak' WITH FORMAT"
-
-docker compose cp db:/var/opt/mssql/data/swmatrc.bak ./respaldos/
+bash infra/restaurar.sh /var/backups/swmatrc/SwmatrcDb-AAAAMMDD-HHMMSS.bak.gz
 ```
+
+**Logs.** Cada contenedor rota su registro (5 archivos de 10 MB, `x-logs` en
+`docker-compose.yml`). Se consultan con `docker compose logs -f api`. El registro de los
+respaldos se rota con [`infra/logrotate-swmatrc`](infra/logrotate-swmatrc).
 
 ---
 
@@ -365,8 +368,8 @@ Todas las variables se leen de `.env`.
 | `JWT_CLAVE` | Clave de firma de los tokens. Mínimo 32 caracteres. | — |
 | `JWT_MINUTOS_VIGENCIA` | Vigencia del token. | `480` |
 | `SIMULACION_INTERVALO_SEGUNDOS` | Periodo del ciclo de adquisición. | `3` |
-| `PUERTO_WEB` | Puerto publicado en el anfitrión. | `8080` |
-| `CORS_ORIGEN` | Origen autorizado del frontend. | `http://localhost:8080` |
+| `PUERTO_WEB` | Puerto publicado en el anfitrión. | `10001` |
+| `CORS_ORIGEN` | Origen autorizado del frontend. | `http://localhost:10001` |
 
 La API acepta además cualquier clave de `appsettings.json` como variable de entorno, con
 doble guion bajo para anidar: `Simulacion__Habilitada=false` detiene el simulador sin
@@ -382,8 +385,9 @@ Todos los extremos exigen `Authorization: Bearer <token>`, salvo `/api/cuenta/lo
 | Método | Ruta | Rol | Descripción |
 |---|---|---|---|
 | `POST` | `/api/cuenta/login` | — | Inicio de sesión |
+| `POST` | `/api/cuenta/logout` | Cualquiera | Cierre de sesión (queda en bitácora) |
 | `GET` | `/api/cuenta/yo` | Cualquiera | Identidad del token |
-| `GET/POST` | `/api/cuenta/usuarios` | Administrador | Listar y crear usuarios |
+| `GET/POST` | `/api/cuenta/usuarios` | Administrador | Listar (búsqueda, rol, estado) y crear usuarios |
 | `PUT` | `/api/cuenta/usuarios/{id}` | Administrador | Cambiar nombre y rol |
 | `PATCH` | `/api/cuenta/usuarios/{id}/estado` | Administrador | Habilitar o deshabilitar |
 | `POST` | `/api/cuenta/usuarios/{id}/password` | Administrador | Restablecer contraseña |
@@ -391,15 +395,29 @@ Todos los extremos exigen `Authorization: Bearer <token>`, salvo `/api/cuenta/lo
 | `GET` | `/api/monitoreo/comunidades/{id}/estado` | Cualquiera | Instantánea del tablero |
 | `GET` | `/api/monitoreo/comunidades/{id}/series` | Cualquiera | Series para los gráficos |
 | `GET` | `/api/monitoreo/resumen` | Cualquiera | Indicadores agregados |
-| `GET` | `/api/sensores` | Cualquiera | Inventario de sensores |
+| `GET` | `/api/comunidades` | Cualquiera | Listado con búsqueda y filtros por estado, municipio y departamento |
+| `GET` | `/api/comunidades/{id}` | Cualquiera | Detalle de una comunidad |
+| `POST/PUT` | `/api/comunidades[/{id}]` | Administrador | Alta y edición |
+| `PATCH` | `/api/comunidades/{id}/estado` | Administrador | Activar o desactivar |
+| `GET` | `/api/sensores` | Cualquiera | Inventario filtrable por comunidad, tipo, estado y código |
 | `GET` | `/api/sensores/plantillas` | Cualquiera | Calibraciones de fábrica |
 | `POST/PUT/DELETE` | `/api/sensores[/{id}]` | Administrador | Alta, edición y baja |
 | `PATCH` | `/api/sensores/{id}/estado` | Operador | Activar o desactivar |
 | `POST` | `/api/sensores/{id}/valor` | Operador | Fijar una lectura manual |
-| `GET` | `/api/alertas`, `/api/alertas/activas` | Cualquiera | Consulta de alertas |
-| `POST` | `/api/alertas/{id}/reconocer` | Operador | Acuse de recibo |
-| `GET` | `/api/historial` | Cualquiera | Historial de eventos |
-| `GET` | `/api/bitacora` | Administrador | Pista de auditoría |
+| `GET` | `/api/lecturas` | Cualquiera | Lecturas por sensor, comunidad, tipo y rango de fechas |
+| `POST` | `/api/lecturas` | Operador | Registrar una lectura manual |
+| `DELETE` | `/api/lecturas/{id}` | Administrador | Eliminar una lectura errónea |
+| `GET` | `/api/reglas[/{id}]` | Cualquiera | Reglas de alerta configurables |
+| `POST/PUT/DELETE` | `/api/reglas[/{id}]` | Administrador | Alta, edición y baja de reglas |
+| `PATCH` | `/api/reglas/{id}/estado` | Administrador | Activar o desactivar una regla |
+| `GET` | `/api/alertas`, `/api/alertas/activas` | Cualquiera | Consulta con filtros por fecha, comunidad, sensor, fenómeno, nivel y estado |
+| `GET` | `/api/alertas/{id}` | Cualquiera | Detalle de una alerta |
+| `POST` | `/api/alertas/{id}/atender` | Operador | Pasar la alerta a Atendida (`/reconocer` sigue disponible) |
+| `POST` | `/api/alertas/{id}/cerrar` | Operador | Cierre manual con usuario responsable |
+| `GET` | `/api/historial` | Cualquiera | Historial filtrable por fecha, comunidad, fenómeno, nivel y estado |
+| `GET` | `/api/historial/estadisticas` | Cualquiera | Estadísticas de los eventos del filtro |
+| `GET` | `/api/bitacora` | Administrador | Pista de auditoría filtrable por usuario, acción, entidad y fecha |
+| `GET` | `/api/bitacora/catalogos` | Administrador | Acciones y entidades registradas |
 | `POST` | `/api/sistema/reiniciar` | Administrador | Reiniciar el monitoreo |
 | `GET` | `/health` | — | Sonda de estado |
 
@@ -409,7 +427,7 @@ Todos los extremos exigen `Authorization: Bearer <token>`, salvo `/api/cuenta/lo
 
 | Componente | Tecnología |
 |---|---|
-| Frontend | Angular 21 · componentes autónomos, señales, sin `zone.js` · Chart.js |
+| Frontend | Angular 22 · componentes autónomos, señales, sin `zone.js` · Chart.js |
 | Backend | .NET 10 (LTS) · ASP.NET Core · SignalR sobre WebSockets |
 | Datos | SQL Server 2022 · Entity Framework Core 10 |
 | Seguridad | JWT (HMAC-SHA256) · BCrypt |

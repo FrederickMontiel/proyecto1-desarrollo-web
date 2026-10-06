@@ -1,7 +1,0 @@
-// User controller
-// User DTO
-// Product controller
-// Product DTO
-// Order controller
-// Category controller
-// Error DTO

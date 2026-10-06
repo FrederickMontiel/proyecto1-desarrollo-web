@@ -558,7 +558,7 @@ Tres contenedores, todos sobre imágenes Linux, sin componentes gráficos:
 |---|---|---|---|
 | `db` | `mcr.microsoft.com/mssql/server:2022-latest` | 2,31 GB | — |
 | `api` | `mcr.microsoft.com/dotnet/aspnet:10.0` | 383 MB | — |
-| `web` | `nginx:1.27-alpine` | 74,5 MB | `8080` |
+| `web` | `nginx:1.27-alpine` | 74,5 MB | `10001` |
 
 **Solo `web` publica un puerto.** La API y SQL Server son alcanzables únicamente desde la red
 interna de Docker: el motor de base de datos nunca queda expuesto a Internet.
