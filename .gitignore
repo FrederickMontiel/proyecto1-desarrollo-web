@@ -4,11 +4,18 @@
 *.user
 .vs/
 
+# Java
+target/
+
 # Node / Angular
 node_modules/
 dist/
 .angular/
 npm-debug.log*
+*.tsbuildinfo
+
+# IDE
+.vscode/
 
 # Entorno
 .env
@@ -17,3 +24,14 @@ npm-debug.log*
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Notas de planificación locales (no se integran)
+planificacion/
+
+# Llaves y secretos locales (infra/generar-llaves.sh)
+secrets/
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/

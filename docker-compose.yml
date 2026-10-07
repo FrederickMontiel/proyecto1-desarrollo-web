@@ -1,11 +1,18 @@
 name: swmatrc
 
 # --------------------------------------------------------------------------------------
-# Sistema Web de Monitoreo y Alerta Temprana para Riesgos Climáticos
+# Sistema Web de Monitoreo y Alerta Temprana para Riesgos Climáticos — Fase 3
 #
-# Tres contenedores sobre una red interna: la base de datos no publica puerto hacia el
-# exterior en producción y solo la web queda expuesta. Los valores sensibles se leen del
-# archivo .env, que no se versiona.
+# Arquitectura de microservicios:
+#
+#   nginx (VPS/WSL, HTTPS) ──> gateway (YARP) ──> auth | community | sensor | alert | report | audit
+#                          └─> web (Angular)
+#
+# Un contenedor por motor de base de datos (PostgreSQL, SQL Server, MongoDB) y, dentro de
+# cada uno, una base con su propio usuario por servicio. Solo el gateway y la web publican
+# puerto, y únicamente en el loopback: el resto vive en la red interna.
+#
+# Los valores sensibles se leen del archivo .env, que no se versiona.
 # --------------------------------------------------------------------------------------
 
 # Rotación de logs de los contenedores: sin límite, el registro json de Docker crece hasta
@@ -19,20 +26,50 @@ x-logs: &logs
 
 services:
 
-  db:
+  # ====================================================================================
+  # Bases de datos
+  # ====================================================================================
+
+  postgres:
+    image: postgres:18.6-alpine
+    container_name: swmatrc-postgres
+    <<: *logs
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD en .env}
+      # Las leen los scripts de /docker-entrypoint-initdb.d en el primer arranque.
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:?Defina AUTH_DB_PASSWORD en .env}
+      COMMUNITY_DB_PASSWORD: ${COMMUNITY_DB_PASSWORD:?Defina COMMUNITY_DB_PASSWORD en .env}
+      ALERT_DB_PASSWORD: ${ALERT_DB_PASSWORD:?Defina ALERT_DB_PASSWORD en .env}
+    volumes:
+      # Desde PostgreSQL 18 la imagen guarda los datos en un subdirectorio por versión
+      # mayor, así que el volumen se monta en /var/lib/postgresql y no en .../data.
+      - datos-postgres:/var/lib/postgresql
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - interna
+    restart: unless-stopped
+
+  sqlserver:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: swmatrc-db
+    container_name: swmatrc-sqlserver
     <<: *logs
     environment:
       ACCEPT_EULA: "Y"
-      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:?Defina MSSQL_SA_PASSWORD en .env}
       # Developer: gratuita y funcionalmente equivalente a Enterprise para este proyecto.
       MSSQL_PID: Developer
       MSSQL_COLLATION: Modern_Spanish_CI_AS
     volumes:
+      # Mismo volumen que en la Fase 2: conserva la base SwmatrcDb de donde se migra.
       - datos-sqlserver:/var/opt/mssql
     healthcheck:
-      # La API espera a que el motor responda de verdad, no solo a que exista el proceso.
       test:
         - CMD-SHELL
         - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" -b -o /dev/null
@@ -44,33 +81,318 @@ services:
       - interna
     restart: unless-stopped
 
-  api:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: swmatrc-api
+  # Contenedor de un solo uso: crea sensor_db y su login. Termina en cuanto lo hace.
+  sqlserver-init:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: swmatrc-sqlserver-init
     <<: *logs
     depends_on:
-      db:
+      sqlserver:
         condition: service_healthy
     environment:
-      ASPNETCORE_ENVIRONMENT: Production
-      ASPNETCORE_HTTP_PORTS: 8080
-      # El doble guion bajo es la convención de .NET para anidar secciones de configuración.
-      ConnectionStrings__SqlServer: "Server=db,1433;Database=${MSSQL_DATABASE};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=True"
-      Jwt__Clave: ${JWT_CLAVE}
-      Jwt__Emisor: swmatrc-api
-      Jwt__Audiencia: swmatrc-web
-      Jwt__MinutosVigencia: ${JWT_MINUTOS_VIGENCIA:-480}
-      Simulacion__IntervaloSegundos: ${SIMULACION_INTERVALO_SEGUNDOS:-3}
-      Simulacion__Habilitada: "true"
-      Cors__Origenes__0: ${CORS_ORIGEN:-http://localhost:10001}
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      SENSOR_DB_PASSWORD: ${SENSOR_DB_PASSWORD:?Defina SENSOR_DB_PASSWORD en .env}
+    volumes:
+      - ./infra/sqlserver/init.sql:/init/init.sql:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$$MSSQL_SA_PASSWORD" -C -b -i /init/init.sql -v SENSOR_DB_PASSWORD="$$SENSOR_DB_PASSWORD"
+    networks:
+      - interna
+    restart: "no"
+
+  mongo:
+    image: mongo:8.0
+    container_name: swmatrc-mongo
+    <<: *logs
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Defina MONGO_ROOT_PASSWORD en .env}
+      REPORT_DB_PASSWORD: ${REPORT_DB_PASSWORD:?Defina REPORT_DB_PASSWORD en .env}
+      AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD:?Defina AUDIT_DB_PASSWORD en .env}
+    volumes:
+      - datos-mongo:/data/db
+      - ./infra/mongo/init.js:/docker-entrypoint-initdb.d/10-init.js:ro
     healthcheck:
-      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/health || exit 1"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    networks:
+      - interna
+    restart: unless-stopped
+
+  # Migración de los datos de la Fase 2. No arranca con "up": solo con
+  #   docker compose --profile migracion run --rm migracion
+  # (detener antes los microservicios; ver tools/migracion/migrar.py).
+  migracion:
+    build:
+      context: ./tools/migracion
+    profiles: ["migracion"]
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    environment:
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_DATABASE_LEGADO: ${MSSQL_DATABASE_LEGADO:-SwmatrcDb}
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      COMMUNITY_DB_PASSWORD: ${COMMUNITY_DB_PASSWORD}
+      ALERT_DB_PASSWORD: ${ALERT_DB_PASSWORD}
+      AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD}
+      REPORT_DB_PASSWORD: ${REPORT_DB_PASSWORD}
+    networks:
+      - interna
+    restart: "no"
+
+  # ====================================================================================
+  # Microservicios
+  # ====================================================================================
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: swmatrc-auth
+    <<: *logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NOMBRE: auth_db
+      DB_USUARIO: auth_svc
+      DB_PASSWORD: ${AUTH_DB_PASSWORD}
+      JWT_LLAVE_PRIVADA_FILE: /run/secrets/jwt_private_key
+      JWT_EMISOR: ${JWT_EMISOR:-swmatrc-auth}
+      JWT_AUDIENCIA: ${JWT_AUDIENCIA:-swmatrc-web}
+      JWT_MINUTOS_VIGENCIA: ${JWT_MINUTOS_VIGENCIA:-480}
+      URL_INTERNA: http://auth-service:3000
+      URL_AUDITORIA: http://audit-service:8000
+      # Credenciales con las que cada servicio pide su token interno.
+      CLIENTES_SERVICIO: >-
+        community-service:${SVC_SECRETO_COMMUNITY:?Defina SVC_SECRETO_COMMUNITY en .env},
+        sensor-service:${SVC_SECRETO_SENSOR:?Defina SVC_SECRETO_SENSOR en .env},
+        alert-service:${SVC_SECRETO_ALERT:?Defina SVC_SECRETO_ALERT en .env},
+        report-service:${SVC_SECRETO_REPORT:?Defina SVC_SECRETO_REPORT en .env},
+        audit-service:${SVC_SECRETO_AUDIT:?Defina SVC_SECRETO_AUDIT en .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    secrets:
+      - jwt_private_key
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:3000/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - interna
+    restart: unless-stopped
+
+  community-service:
+    build:
+      # Contexto services/: el proyecto usa la librería compartida dotnet-comun/.
+      context: ./services
+      dockerfile: community-service/Dockerfile
+    container_name: swmatrc-community
+    <<: *logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=community_db;Username=community_svc;Password=${COMMUNITY_DB_PASSWORD}"
+      Autenticacion__Emisor: ${JWT_EMISOR:-swmatrc-auth}
+      Autenticacion__Audiencia: ${JWT_AUDIENCIA:-swmatrc-web}
+      Servicio__Nombre: community-service
+      Servicio__Secreto: ${SVC_SECRETO_COMMUNITY}
+      Servicios__UrlSensor: http://sensor-service:8080
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - interna
+    restart: unless-stopped
+
+  sensor-service:
+    build:
+      context: ./services
+      dockerfile: sensor-service/Dockerfile
+    container_name: swmatrc-sensor
+    <<: *logs
+    depends_on:
+      sqlserver-init:
+        condition: service_completed_successfully
+      auth-service:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__SqlServer: "Server=sqlserver,1433;Database=sensor_db;User Id=sensor_svc;Password=${SENSOR_DB_PASSWORD};TrustServerCertificate=True;Encrypt=True"
+      Autenticacion__Emisor: ${JWT_EMISOR:-swmatrc-auth}
+      Autenticacion__Audiencia: ${JWT_AUDIENCIA:-swmatrc-web}
+      Servicio__Nombre: sensor-service
+      Servicio__Secreto: ${SVC_SECRETO_SENSOR}
+      Servicios__UrlCommunity: http://community-service:8080
+      Servicios__UrlAlert: http://alert-service:8080
+      Simulacion__IntervaloSegundos: ${SIMULACION_INTERVALO_SEGUNDOS:-3}
+      # El simulador guarda estado en memoria: con varias réplicas, solo una lo activa.
+      Simulacion__Habilitada: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/health/ready || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - interna
+    restart: unless-stopped
+
+  alert-service:
+    build:
+      context: ./services/alert-service
+      dockerfile: Dockerfile
+    container_name: swmatrc-alert
+    <<: *logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    environment:
+      DB_HOST: postgres
+      DB_NOMBRE: alert_db
+      DB_USUARIO: alert_svc
+      DB_PASSWORD: ${ALERT_DB_PASSWORD}
+      SERVICIO_SECRETO: ${SVC_SECRETO_ALERT}
+      JWT_EMISOR: ${JWT_EMISOR:-swmatrc-auth}
+      JWT_AUDIENCIA: ${JWT_AUDIENCIA:-swmatrc-web}
+      JWT_JWKS: http://auth-service:3000/.well-known/jwks.json
+      URL_AUTH: http://auth-service:3000
+      URL_AUDITORIA: http://audit-service:8000
+      URL_SENSOR: http://sensor-service:8080
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --tries=1 --spider http://127.0.0.1:8080/health/ready || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 60s
+    networks:
+      - interna
+    restart: unless-stopped
+
+  report-service:
+    build:
+      context: ./services/report-service
+      dockerfile: Dockerfile
+    container_name: swmatrc-report
+    <<: *logs
+    depends_on:
+      mongo:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+    environment:
+      MONGO_HOST: mongo
+      MONGO_BASE: report_db
+      MONGO_USUARIO: report_svc
+      MONGO_PASSWORD: ${REPORT_DB_PASSWORD}
+      SERVICIO_SECRETO: ${SVC_SECRETO_REPORT}
+      AUTH_URL_METADATOS: http://auth-service:3000/.well-known/openid-configuration
+      JWT_EMISOR: ${JWT_EMISOR:-swmatrc-auth}
+      JWT_AUDIENCIA: ${JWT_AUDIENCIA:-swmatrc-web}
+      URL_AUTH: http://auth-service:3000
+      URL_COMMUNITY: http://community-service:8080
+      URL_SENSOR: http://sensor-service:8080
+      URL_ALERT: http://alert-service:8080
+      URL_AUDITORIA: http://audit-service:8000
+      ZONA_HORARIA: America/Guatemala
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - interna
+    restart: unless-stopped
+
+  audit-service:
+    build:
+      context: ./services/audit-service
+      dockerfile: Dockerfile
+    container_name: swmatrc-audit
+    <<: *logs
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGO_HOST: mongo
+      MONGO_BASE: audit_db
+      MONGO_USUARIO: audit_svc
+      MONGO_PASSWORD: ${AUDIT_DB_PASSWORD}
+      AUTH_URL_METADATOS: http://auth-service:3000/.well-known/openid-configuration
+      JWT_EMISOR: ${JWT_EMISOR:-swmatrc-auth}
+      JWT_AUDIENCIA: ${JWT_AUDIENCIA:-swmatrc-web}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).status == 200 else 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - interna
+    restart: unless-stopped
+
+  # ====================================================================================
+  # Punto de entrada
+  # ====================================================================================
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: swmatrc-gateway
+    <<: *logs
+    depends_on:
+      # El gateway descarga el JWKS de Auth la primera vez que valida un token.
+      auth-service:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Autenticacion__Emisor: ${JWT_EMISOR:-swmatrc-auth}
+      Autenticacion__Audiencia: ${JWT_AUDIENCIA:-swmatrc-web}
+      Cors__Origenes__0: ${CORS_ORIGEN:-http://localhost:10001}
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/health/live || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # Docker publica los puertos saltándose UFW: se queda en el loopback y es el nginx de
+    # la VPS (o de WSL) quien atiende el 80 y el 443.
+    ports:
+      - "${IP_PUBLICACION:-127.0.0.1}:${PUERTO_GATEWAY:-10000}:8080"
     networks:
       - interna
     restart: unless-stopped
@@ -82,20 +404,27 @@ services:
     container_name: swmatrc-web
     <<: *logs
     depends_on:
-      api:
+      gateway:
         condition: service_started
-    # Por omisión solo escucha en el loopback: Docker publica los puertos saltándose UFW,
-    # así que abrirlo en 0.0.0.0 lo expondría a Internet aunque el cortafuegos lo bloquee.
-    # El proxy inverso de la VPS (nginx con Let's Encrypt) es quien atiende el 80 y el 443.
     ports:
       - "${IP_PUBLICACION:-127.0.0.1}:${PUERTO_WEB:-10001}:80"
     networks:
       - interna
     restart: unless-stopped
 
+# Se montan como archivos en /run/secrets/<nombre>, igual que un Secret de Kubernetes.
+secrets:
+  jwt_private_key:
+    # Se genera con infra/generar-llaves.sh; la carpeta secrets/ no se versiona.
+    file: ./secrets/jwt-private.pem
+
 volumes:
+  datos-postgres:
+    name: swmatrc-datos-postgres
   datos-sqlserver:
     name: swmatrc-datos-sqlserver
+  datos-mongo:
+    name: swmatrc-datos-mongo
 
 networks:
   interna:
