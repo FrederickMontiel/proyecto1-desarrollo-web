@@ -42,10 +42,20 @@
 @if (estado.resumen(); as resumen) {
   <section class="indicadores">
     <div class="indicador tarjeta">
-      <span class="indicador__etiqueta">Sensores en servicio</span>
+      <span class="indicador__etiqueta">Comunidades</span>
+      <strong class="indicador__cifra cifra">{{ totalComunidades() }}</strong>
+    </div>
+
+    <div class="indicador tarjeta">
+      <span class="indicador__etiqueta">Sensores activos</span>
       <strong class="indicador__cifra cifra">
         {{ resumen.sensoresActivos }}<span class="indicador__total">/{{ resumen.totalSensores }}</span>
       </strong>
+    </div>
+
+    <div class="indicador tarjeta">
+      <span class="indicador__etiqueta">Sensores inactivos</span>
+      <strong class="indicador__cifra cifra">{{ resumen.sensoresInactivos }}</strong>
     </div>
 
     <!-- Sensores mudos: el tablero debe decir cuándo dejó de saber, no solo cuándo hay
@@ -65,7 +75,7 @@
     </div>
 
     <div class="indicador tarjeta">
-      <span class="indicador__etiqueta">Sin reconocer</span>
+      <span class="indicador__etiqueta">Sin atender</span>
       <strong class="indicador__cifra cifra" [class.indicador__cifra--riesgo]="estado.alertasSinReconocer().length > 0">
         {{ estado.alertasSinReconocer().length }}
       </strong>
@@ -109,7 +119,10 @@
       <span class="texto-tenue">{{ estado.alertasActivas().length }} abiertas</span>
     </div>
 
-    <app-panel-alertas [alertas]="estado.alertasActivas()" (reconocida)="alReconocer($event)" />
+    <app-panel-alertas
+      [alertas]="estado.alertasActivas()"
+      (reconocida)="alReconocer($event)"
+      (cerrada)="alCerrar()" />
   </div>
 
   <div class="tarjeta">

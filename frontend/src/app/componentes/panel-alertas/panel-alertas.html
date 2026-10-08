@@ -20,8 +20,8 @@
             </span>
 
             @if (alerta.reconocida) {
-              <span class="insignia alerta__acuse" [title]="'Reconocida por ' + alerta.reconocidaPor">
-                ✓ Reconocida
+              <span class="insignia alerta__acuse" [title]="'Atendida por ' + alerta.reconocidaPor">
+                ✓ Atendida
               </span>
             }
           </div>
@@ -33,20 +33,34 @@
             @if (alerta.sensorCodigo) {
               <span>· Sensor {{ alerta.sensorCodigo }}</span>
             }
+            @if (alerta.reglaNombre) {
+              <span>· Regla: {{ alerta.reglaNombre }}</span>
+            }
             @if (alerta.reconocida && alerta.reconocidaPor) {
               <span>· Atendida por {{ alerta.reconocidaPor }}</span>
             }
           </div>
         </div>
 
-        @if (!alerta.reconocida && auth.puedeOperar()) {
-          <button
-            class="boton boton--sm"
-            type="button"
-            (click)="reconocer(alerta)"
-            [disabled]="enProceso(alerta)">
-            {{ enProceso(alerta) ? '…' : 'Reconocer' }}
-          </button>
+        @if (auth.puedeOperar()) {
+          <div class="alerta__acciones">
+            @if (!alerta.reconocida) {
+              <button
+                class="boton boton--sm"
+                type="button"
+                (click)="reconocer(alerta)"
+                [disabled]="enProceso(alerta)">
+                {{ enProceso(alerta) ? '…' : 'Atender' }}
+              </button>
+            }
+            <button
+              class="boton boton--sm"
+              type="button"
+              (click)="cerrar(alerta)"
+              [disabled]="enProceso(alerta)">
+              Cerrar
+            </button>
+          </div>
         }
       </li>
     }

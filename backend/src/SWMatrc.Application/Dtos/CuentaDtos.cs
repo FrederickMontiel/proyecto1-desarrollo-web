@@ -47,6 +47,7 @@ public record UsuarioDto
     public string RolNombre { get; init; } = string.Empty;
     public bool Activo { get; init; }
     public DateTime? UltimoAcceso { get; init; }
+    public DateTime FechaCreacion { get; init; }
 
     public static UsuarioDto Desde(Usuario u) => new()
     {
@@ -56,7 +57,8 @@ public record UsuarioDto
         Rol = u.Rol,
         RolNombre = u.Rol.ToString(),
         Activo = u.Activo,
-        UltimoAcceso = u.UltimoAcceso
+        UltimoAcceso = u.UltimoAcceso,
+        FechaCreacion = u.FechaCreacion
     };
 }
 
@@ -90,11 +92,15 @@ public record ComunidadDto
     public string Nombre { get; init; } = string.Empty;
     public string Municipio { get; init; } = string.Empty;
     public string Departamento { get; init; } = string.Empty;
+    public string Pais { get; init; } = string.Empty;
+    public string? Descripcion { get; init; }
     public decimal Latitud { get; init; }
     public decimal Longitud { get; init; }
     public int Poblacion { get; init; }
     public bool Activa { get; init; }
     public int TotalSensores { get; init; }
+    public int SensoresActivos { get; init; }
+    public DateTime FechaCreacion { get; init; }
 
     public static ComunidadDto Desde(Comunidad c) => new()
     {
@@ -102,11 +108,15 @@ public record ComunidadDto
         Nombre = c.Nombre,
         Municipio = c.Municipio,
         Departamento = c.Departamento,
+        Pais = c.Pais,
+        Descripcion = c.Descripcion,
         Latitud = c.Latitud,
         Longitud = c.Longitud,
         Poblacion = c.Poblacion,
         Activa = c.Activa,
-        TotalSensores = c.Sensores.Count
+        TotalSensores = c.Sensores.Count,
+        SensoresActivos = c.Sensores.Count(s => s.Estado == EstadoSensor.Activo),
+        FechaCreacion = c.FechaCreacion
     };
 }
 

@@ -2,36 +2,97 @@
   <div>
     <h1>Alertas</h1>
     <p class="texto-suave">
-      Avisos emitidos por el motor de riesgo para {{ estado.comunidadActiva()?.nombre }}.
+      Avisos generados al comparar cada lectura con las reglas de alerta configuradas.
     </p>
   </div>
 </div>
 
 <section class="tarjeta bloque">
   <div class="panel-titulo">
-    <h2>Activas</h2>
+    <h2>Activas en {{ estado.comunidadActiva()?.nombre }}</h2>
     <span class="texto-tenue">{{ estado.alertasActivas().length }} abiertas</span>
   </div>
 
-  <app-panel-alertas [alertas]="estado.alertasActivas()" (reconocida)="alReconocer($event)" />
+  <app-panel-alertas
+    [alertas]="estado.alertasActivas()"
+    (reconocida)="alReconocer($event)"
+    (cerrada)="alCerrar()" />
+</section>
+
+<!-- Filtros del registro completo -->
+<section class="tarjeta filtros">
+  <div class="campo">
+    <label for="f-comunidad">Comunidad</label>
+    <select id="f-comunidad" [(ngModel)]="comunidadFiltro" (ngModelChange)="alCambiarComunidad()">
+      <option value="">Todas</option>
+      @for (c of comunidades(); track c.id) {
+        <option [ngValue]="c.id">{{ c.nombre }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-sensor">Sensor</label>
+    <select id="f-sensor" [(ngModel)]="sensorFiltro" (ngModelChange)="aplicarFiltros()">
+      <option value="">Todos</option>
+      @for (s of sensoresFiltrados(); track s.id) {
+        <option [ngValue]="s.id">{{ s.codigo }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-fenomeno">Fenómeno</label>
+    <select id="f-fenomeno" [(ngModel)]="fenomenoFiltro" (ngModelChange)="aplicarFiltros()">
+      <option value="">Todos</option>
+      @for (f of fenomenos; track f.valor) {
+        <option [value]="f.valor">{{ f.icono }} {{ f.etiqueta }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-nivel">Nivel</label>
+    <select id="f-nivel" [(ngModel)]="nivelFiltro" (ngModelChange)="aplicarFiltros()">
+      <option value="">Todos</option>
+      @for (nivel of niveles; track nivel) {
+        <option [value]="nivel">{{ nivel }} — {{ nivelEtiqueta(nivel) }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-estado">Estado</label>
+    <select id="f-estado" [(ngModel)]="estadoFiltro" (ngModelChange)="aplicarFiltros()">
+      <option value="">Todos</option>
+      @for (e of estados; track e) {
+        <option [value]="e">{{ estadoMeta[e].etiqueta }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="desde">Desde</label>
+    <input id="desde" type="datetime-local" [(ngModel)]="desde" />
+  </div>
+
+  <div class="campo">
+    <label for="hasta">Hasta</label>
+    <input id="hasta" type="datetime-local" [(ngModel)]="hasta" />
+  </div>
+
+  <div class="filtros__acciones">
+    <button class="boton boton--primario" type="button" (click)="aplicarFiltros()">Filtrar</button>
+    <button class="boton" type="button" (click)="limpiar()">Limpiar</button>
+  </div>
 </section>
 
 <section class="tarjeta">
   <div class="panel-titulo">
     <h2>Registro completo</h2>
-
-    <label class="filtro">
-      <span class="texto-tenue">Nivel</span>
-      <select [(ngModel)]="nivelFiltro" (ngModelChange)="cambiarFiltro()">
-        <option value="">Todos</option>
-        @for (nivel of niveles; track nivel) {
-          <option [value]="nivel">{{ nivel }} — {{ nivelEtiqueta(nivel) }}</option>
-        }
-      </select>
-    </label>
   </div>
 
-  @if (cargando()) {
+  @if (cargando() && !historico()) {
     <p class="vacio">Cargando alertas…</p>
   } @else if (!historico() || historico()!.elementos.length === 0) {
     <p class="vacio">No hay alertas que coincidan con el filtro.</p>
@@ -40,18 +101,26 @@
       <table class="tabla">
         <thead>
           <tr>
-            <th>Fecha y hora</th>
+            <th>Fecha</th>
+            <th>Hora</th>
+            <th>Comunidad</th>
+            <th>Sensor</th>
             <th>Fenómeno</th>
             <th>Nivel</th>
-            <th>Descripción</th>
-            <th>Sensor</th>
+            <th>Valor</th>
+            <th>Umbral</th>
+            <th>Mensaje</th>
             <th>Estado</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           @for (alerta of historico()!.elementos; track alerta.id) {
             <tr>
-              <td class="numero">{{ alerta.fechaHora | date: 'dd/MM/yy HH:mm:ss' }}</td>
+              <td class="numero">{{ alerta.fechaHora | date: 'dd/MM/yy' }}</td>
+              <td class="numero">{{ alerta.fechaHora | date: 'HH:mm:ss' }}</td>
+              <td>{{ alerta.comunidadNombre }}</td>
+              <td class="mono">{{ alerta.sensorCodigo ?? '—' }}</td>
               <td>
                 <span aria-hidden="true">{{ fenomeno(alerta).icono }}</span>
                 {{ fenomeno(alerta).etiqueta }}
@@ -61,17 +130,16 @@
                   {{ alerta.nivel }}
                 </span>
               </td>
+              <td class="numero">{{ alerta.valorDisparo !== null ? (alerta.valorDisparo | number: '1.0-2') : '—' }}</td>
+              <td class="numero">{{ alerta.umbral !== null ? (alerta.umbral | number: '1.0-2') : '—' }}</td>
               <td class="descripcion">{{ alerta.mensaje }}</td>
-              <td class="mono">{{ alerta.sensorCodigo ?? '—' }}</td>
               <td>
-                @if (alerta.activa) {
-                  <span class="insignia nivel-naranja">Abierta</span>
-                } @else {
-                  <span class="insignia">Cerrada</span>
-                }
-                @if (alerta.reconocida) {
-                  <span class="insignia nivel-verde">✓</span>
-                }
+                <span class="insignia" [class]="estadoMeta[alerta.estado].clase">
+                  {{ estadoMeta[alerta.estado].etiqueta }}
+                </span>
+              </td>
+              <td>
+                <button class="boton boton--sm" type="button" (click)="verDetalle(alerta)">Detalle</button>
               </td>
             </tr>
           }
@@ -79,27 +147,100 @@
       </table>
     </div>
 
-    <nav class="paginacion" aria-label="Paginación de alertas">
-      <button
-        class="boton boton--sm"
-        type="button"
-        [disabled]="historico()!.pagina <= 1"
-        (click)="irA(historico()!.pagina - 1)">
-        ← Anterior
-      </button>
-
-      <span class="texto-tenue">
-        Página {{ historico()!.pagina }} de {{ historico()!.totalPaginas }}
-        · {{ historico()!.totalElementos }} registros
-      </span>
-
-      <button
-        class="boton boton--sm"
-        type="button"
-        [disabled]="historico()!.pagina >= historico()!.totalPaginas"
-        (click)="irA(historico()!.pagina + 1)">
-        Siguiente →
-      </button>
-    </nav>
+    <app-paginador [pagina]="historico()!" unidad="alertas" (cambiar)="irA($event)" />
   }
 </section>
+
+<!-- Detalle de una alerta -->
+@if (detalle(); as alerta) {
+  <div class="modal-fondo" (click)="cerrarDetalle()">
+    <section
+      class="tarjeta modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="titulo-detalle"
+      (click)="$event.stopPropagation()">
+      <div class="panel-titulo">
+        <h2 id="titulo-detalle">
+          {{ fenomeno(alerta).icono }} {{ fenomeno(alerta).etiqueta }} · Alerta #{{ alerta.id }}
+        </h2>
+        <button class="boton boton--sm" type="button" (click)="cerrarDetalle()" aria-label="Cerrar detalle">✕</button>
+      </div>
+
+      <dl class="detalle-lista">
+        <dt>Estado</dt>
+        <dd>
+          <span class="insignia" [class]="estadoMeta[alerta.estado].clase">{{ estadoMeta[alerta.estado].etiqueta }}</span>
+        </dd>
+
+        <dt>Nivel</dt>
+        <dd>
+          <span class="insignia" [class]="'nivel-' + alerta.nivel.toLowerCase()">
+            {{ alerta.nivel }} — {{ nivelEtiqueta(alerta.nivel) }}
+          </span>
+        </dd>
+
+        <dt>Fecha y hora</dt>
+        <dd>{{ alerta.fechaHora | date: 'dd/MM/yyyy HH:mm:ss' }}</dd>
+
+        <dt>Comunidad</dt>
+        <dd>{{ alerta.comunidadNombre }}</dd>
+
+        <dt>Sensor</dt>
+        <dd>
+          @if (alerta.sensorCodigo) {
+            <span class="mono">{{ alerta.sensorCodigo }}</span> — {{ alerta.sensorNombre }}
+          } @else {
+            Evaluación combinada de varias magnitudes
+          }
+        </dd>
+
+        <dt>Valor detectado</dt>
+        <dd>
+          {{ alerta.valorDisparo !== null ? (alerta.valorDisparo | number: '1.0-3') : '—' }}
+          {{ alerta.unidadMedida }}
+        </dd>
+
+        <dt>Umbral</dt>
+        <dd>{{ alerta.umbral !== null ? (alerta.umbral | number: '1.0-3') : '—' }} {{ alerta.unidadMedida }}</dd>
+
+        <dt>Regla</dt>
+        <dd>{{ alerta.reglaNombre || '—' }}</dd>
+
+        <dt>Mensaje</dt>
+        <dd>{{ alerta.mensaje }}</dd>
+
+        @if (alerta.reconocidaPor) {
+          <dt>Atendida por</dt>
+          <dd>{{ alerta.reconocidaPor }} · {{ alerta.fechaReconocimiento | date: 'dd/MM/yyyy HH:mm' }}</dd>
+        }
+
+        @if (alerta.fechaCierre) {
+          <dt>Cerrada</dt>
+          <dd>
+            {{ alerta.fechaCierre | date: 'dd/MM/yyyy HH:mm:ss' }}
+            · {{ alerta.cerradaPor ?? 'Sistema (condiciones normalizadas)' }}
+          </dd>
+        }
+      </dl>
+
+      @if (auth.puedeOperar() && alerta.estado !== 'Cerrada') {
+        <div class="campo bloque-superior">
+          <label for="comentario">Comentario (opcional, queda en la bitácora)</label>
+          <textarea id="comentario" rows="2" maxlength="300" [(ngModel)]="comentario"></textarea>
+        </div>
+
+        <div class="formulario__acciones">
+          @if (alerta.estado === 'Activa') {
+            <button class="boton boton--primario" type="button" [disabled]="procesando()" (click)="atender()">
+              Atender
+            </button>
+          }
+          <button class="boton boton--peligro" type="button" [disabled]="procesando()" (click)="cerrarAlerta()">
+            Cerrar alerta
+          </button>
+        </div>
+      }
+    </section>
+  </div>
+}

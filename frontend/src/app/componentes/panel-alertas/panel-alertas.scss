@@ -94,3 +94,9 @@
     width: 100%;
   }
 }
+
+.alerta__acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}

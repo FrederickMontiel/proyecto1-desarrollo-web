@@ -15,12 +15,24 @@ public sealed class ServicioSensores(
     INotificadorTiempoReal notificador,
     IServicioMonitoreo monitoreo) : IServicioSensores
 {
-    public async Task<IReadOnlyList<SensorDto>> ListarAsync(int? comunidadId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<SensorDto>> ListarAsync(FiltroSensores filtro, CancellationToken ct = default)
     {
         var consulta = db.Sensores.AsNoTracking().Include(s => s.Comunidad).AsQueryable();
 
-        if (comunidadId is { } id)
+        if (filtro.ComunidadId is { } id)
             consulta = consulta.Where(s => s.ComunidadId == id);
+
+        if (filtro.Tipo is { } tipo)
+            consulta = consulta.Where(s => s.Tipo == tipo);
+
+        if (filtro.Estado is { } estado)
+            consulta = consulta.Where(s => s.Estado == estado);
+
+        if (!string.IsNullOrWhiteSpace(filtro.Codigo))
+        {
+            var codigo = filtro.Codigo.Trim().ToUpperInvariant();
+            consulta = consulta.Where(s => s.Codigo.Contains(codigo));
+        }
 
         var sensores = await consulta.OrderBy(s => s.Tipo).ThenBy(s => s.Codigo).ToListAsync(ct);
         return sensores.Select(SensorDto.Desde).ToList();
@@ -49,7 +61,10 @@ public sealed class ServicioSensores(
             Nombre = request.Nombre.Trim(),
             Tipo = request.Tipo,
             UnidadMedida = string.IsNullOrWhiteSpace(request.UnidadMedida) ? plantilla.Unidad : request.UnidadMedida.Trim(),
-            Estado = EstadoSensor.Activo,
+            Estado = request.Estado == EstadoSensor.Inactivo ? EstadoSensor.Inactivo : EstadoSensor.Activo,
+            Ubicacion = Limpiar(request.Ubicacion),
+            Descripcion = Limpiar(request.Descripcion),
+            FechaInstalacion = request.FechaInstalacion ?? DateTime.UtcNow.Date,
             Latitud = request.Latitud == 0 ? comunidad.Latitud : request.Latitud,
             Longitud = request.Longitud == 0 ? comunidad.Longitud : request.Longitud,
             ValorMinimo = request.ValorMinimo ?? plantilla.ValorMinimo,
@@ -83,9 +98,20 @@ public sealed class ServicioSensores(
     public async Task<SensorDto> ActualizarAsync(int id, ActualizarSensorRequest request, CancellationToken ct = default)
     {
         var sensor = await CargarAsync(id, ct);
+        var comunidadAnterior = sensor.ComunidadId;
+
+        if (request.ComunidadId is { } nuevaComunidad && nuevaComunidad != sensor.ComunidadId)
+        {
+            sensor.Comunidad = await db.Comunidades.FirstOrDefaultAsync(c => c.Id == nuevaComunidad, ct)
+                ?? throw new ExcepcionNoEncontrado("la comunidad", nuevaComunidad);
+            sensor.ComunidadId = nuevaComunidad;
+        }
 
         sensor.Nombre = request.Nombre?.Trim() ?? sensor.Nombre;
         sensor.UnidadMedida = request.UnidadMedida?.Trim() ?? sensor.UnidadMedida;
+        sensor.Ubicacion = request.Ubicacion is null ? sensor.Ubicacion : Limpiar(request.Ubicacion);
+        sensor.Descripcion = request.Descripcion is null ? sensor.Descripcion : Limpiar(request.Descripcion);
+        sensor.FechaInstalacion = request.FechaInstalacion ?? sensor.FechaInstalacion;
         sensor.Latitud = request.Latitud ?? sensor.Latitud;
         sensor.Longitud = request.Longitud ?? sensor.Longitud;
         sensor.ValorMinimo = request.ValorMinimo ?? sensor.ValorMinimo;
@@ -108,6 +134,8 @@ public sealed class ServicioSensores(
 
         // Recalibrar umbrales puede abrir o cerrar alertas: se reevalúa de inmediato.
         await monitoreo.EvaluarComunidadAsync(sensor.ComunidadId, ct);
+        if (comunidadAnterior != sensor.ComunidadId)
+            await monitoreo.EvaluarComunidadAsync(comunidadAnterior, ct);
 
         return dto;
     }
@@ -135,6 +163,13 @@ public sealed class ServicioSensores(
     {
         var sensor = await CargarAsync(id, ct);
 
+        // Un sensor desactivado no produce lecturas, ni simuladas ni manuales (RF-ADM-18).
+        if (sensor.Estado == EstadoSensor.Inactivo)
+            throw new ExcepcionValidacion($"El sensor {sensor.Codigo} está desactivado y no admite lecturas.");
+
+        if (sensor.Comunidad is { Activa: false })
+            throw new ExcepcionValidacion($"La comunidad {sensor.Comunidad.Nombre} está desactivada.");
+
         if (valor < sensor.ValorMinimo || valor > sensor.ValorMaximo)
             throw new ExcepcionValidacion(
                 $"El valor debe estar entre {sensor.ValorMinimo} y {sensor.ValorMaximo} {sensor.UnidadMedida}.");
@@ -145,7 +180,14 @@ public sealed class ServicioSensores(
 
         // La inyección manual queda en el histórico igual que una lectura simulada:
         // los gráficos y el motor de riesgo no distinguen su origen.
-        var lectura = new Lectura { SensorId = sensor.Id, Valor = valor, FechaHora = ahora };
+        var lectura = new Lectura
+        {
+            SensorId = sensor.Id,
+            Valor = valor,
+            UnidadMedida = sensor.UnidadMedida,
+            EstadoSensor = sensor.Estado,
+            FechaHora = ahora
+        };
         db.Lecturas.Add(lectura);
         await db.SaveChangesAsync(ct);
 
@@ -171,6 +213,11 @@ public sealed class ServicioSensores(
         foreach (var alerta in alertasDelSensor)
             alerta.SensorId = null;
 
+        // El historial conserva el nombre del sensor en OrigenSensor; solo se suelta la referencia.
+        var eventosDelSensor = await db.Eventos.Where(e => e.SensorId == id).ToListAsync(ct);
+        foreach (var evento in eventosDelSensor)
+            evento.SensorId = null;
+
         await db.SaveChangesAsync(ct);
 
         db.Sensores.Remove(sensor);
@@ -179,6 +226,8 @@ public sealed class ServicioSensores(
         await bitacora.RegistrarAsync("SensorEliminado", nameof(Sensor), id, new { Codigo = codigo }, ct);
         await monitoreo.EvaluarComunidadAsync(comunidadId, ct);
     }
+
+    private static string? Limpiar(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
 
     private async Task<Sensor> CargarAsync(int id, CancellationToken ct) =>
         await db.Sensores.Include(s => s.Comunidad).FirstOrDefaultAsync(s => s.Id == id, ct)

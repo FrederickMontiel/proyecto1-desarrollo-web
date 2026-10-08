@@ -2,7 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SWMatrc.Application.Abstracciones;
 using SWMatrc.Application.Dtos;
-using SWMatrc.Domain.Enums;
 
 namespace SWMatrc.Api.Controllers;
 
@@ -16,22 +15,28 @@ public sealed class HistorialController(IServicioHistorial historial, IServicioB
     /// <summary>Eventos registrados, del más reciente al más antiguo.</summary>
     [HttpGet("historial")]
     public async Task<ActionResult<PaginaDto<EventoDto>>> Eventos(
-        [FromQuery] int pagina = 1,
-        [FromQuery] int tamano = 20,
-        [FromQuery] int? comunidadId = null,
-        [FromQuery] TipoFenomeno? fenomeno = null,
-        [FromQuery] DateTime? desde = null,
-        [FromQuery] DateTime? hasta = null,
-        CancellationToken ct = default) =>
-        Ok(await historial.ListarAsync(pagina, tamano, comunidadId, fenomeno, desde, hasta, ct));
+        [FromQuery] FiltroHistorial filtro, CancellationToken ct) =>
+        Ok(await historial.ListarAsync(filtro, ct));
+
+    /// <summary>Estadísticas de los eventos que cumplen el mismo filtro que el listado.</summary>
+    [HttpGet("historial/estadisticas")]
+    public async Task<ActionResult<EstadisticasHistorialDto>> Estadisticas(
+        [FromQuery] FiltroHistorial filtro, CancellationToken ct) =>
+        Ok(await historial.EstadisticasAsync(filtro, ct));
 
     /// <summary>Pista de auditoría. Solo la ve el administrador.</summary>
     [HttpGet("bitacora")]
     [Authorize(Policy = "Administracion")]
     public async Task<ActionResult<PaginaDto<BitacoraDto>>> Bitacora(
-        [FromQuery] int pagina = 1,
-        [FromQuery] int tamano = 30,
-        [FromQuery] string? accion = null,
-        CancellationToken ct = default) =>
-        Ok(await bitacora.ListarAsync(pagina, tamano, accion, ct));
+        [FromQuery] FiltroBitacora filtro, CancellationToken ct) =>
+        Ok(await bitacora.ListarAsync(filtro, ct));
+
+    /// <summary>Acciones y entidades registradas, para poblar los filtros de la bitácora.</summary>
+    [HttpGet("bitacora/catalogos")]
+    [Authorize(Policy = "Administracion")]
+    public async Task<ActionResult<object>> CatalogosBitacora(CancellationToken ct)
+    {
+        var (acciones, entidades) = await bitacora.CatalogosAsync(ct);
+        return Ok(new { acciones, entidades });
+    }
 }

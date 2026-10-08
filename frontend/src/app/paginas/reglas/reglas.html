@@ -1,0 +1,230 @@
+<div class="panel-titulo">
+  <div>
+    <h1>Reglas de alerta</h1>
+    <p class="texto-suave">
+      Cada lectura se compara con las reglas activas de su tipo de sensor. Si cae dentro del
+      rango, se genera una alerta que identifica la regla que la provocó.
+    </p>
+  </div>
+
+  @if (auth.puedeAdministrar()) {
+    <button class="boton boton--primario" type="button" (click)="abrirAlta()">+ Nueva regla</button>
+  }
+</div>
+
+<!-- Formulario de alta y edición -->
+@if (formularioAbierto()) {
+  <section class="tarjeta formulario">
+    <div class="panel-titulo">
+      <h2>{{ editando() ? 'Editar regla' : 'Nueva regla' }}</h2>
+      <button class="boton boton--sm" type="button" (click)="cerrar()">Cancelar</button>
+    </div>
+
+    <form [formGroup]="formulario" (ngSubmit)="guardar()">
+      <div class="rejilla-campos">
+        <div class="campo">
+          <label for="nombre">Nombre</label>
+          <input id="nombre" formControlName="nombre" placeholder="Crecida del río — emergencia" />
+          @if (formulario.controls.nombre.touched && formulario.controls.nombre.invalid) {
+            <small class="error-campo">El nombre es obligatorio.</small>
+          }
+        </div>
+
+        <div class="campo">
+          <label for="tipo">Tipo de sensor</label>
+          <select id="tipo" formControlName="tipoSensor">
+            @for (t of tipos; track t.valor) {
+              <option [value]="t.valor">{{ t.icono }} {{ t.etiqueta }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="campo">
+          <label for="minimo">Valor mínimo</label>
+          <input id="minimo" type="number" step="any" formControlName="valorMinimo" placeholder="Sin límite" />
+        </div>
+
+        <div class="campo">
+          <label for="maximo">Valor máximo</label>
+          <input id="maximo" type="number" step="any" formControlName="valorMaximo" placeholder="Sin límite" />
+        </div>
+
+        <div class="campo">
+          <label for="nivel">Nivel de peligro</label>
+          <select id="nivel" formControlName="nivel">
+            @for (n of niveles; track n.valor) {
+              <option [value]="n.valor">{{ n.valor }} — {{ n.etiqueta }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="campo">
+          <label for="fenomeno">Fenómeno</label>
+          <select id="fenomeno" formControlName="fenomeno">
+            @for (f of fenomenos; track f.valor) {
+              <option [value]="f.valor">{{ f.icono }} {{ f.etiqueta }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="campo">
+          <label for="activa">Estado</label>
+          <select id="activa" formControlName="activa">
+            <option [ngValue]="true">Activa</option>
+            <option [ngValue]="false">Inactiva</option>
+          </select>
+        </div>
+
+        <div class="campo campo--ancho">
+          <label for="mensaje">Mensaje</label>
+          <textarea id="mensaje" rows="2" formControlName="mensaje"
+            placeholder="Alerta: el río alcanzó {valor} {unidad} en {comunidad}."></textarea>
+          <small class="texto-tenue">
+            Marcadores disponibles: {{ '{' }}valor{{ '}' }}, {{ '{' }}unidad{{ '}' }},
+            {{ '{' }}sensor{{ '}' }} y {{ '{' }}comunidad{{ '}' }}.
+          </small>
+          @if (formulario.controls.mensaje.touched && formulario.controls.mensaje.invalid) {
+            <small class="error-campo">El mensaje es obligatorio.</small>
+          }
+        </div>
+      </div>
+
+      @if (formulario.touched && rangoInvalido(); as error) {
+        <p class="error-campo">{{ error }}</p>
+      }
+
+      <div class="formulario__acciones">
+        <button class="boton boton--primario" type="submit" [disabled]="guardando()">
+          {{ guardando() ? 'Guardando…' : editando() ? 'Guardar cambios' : 'Crear regla' }}
+        </button>
+        <button class="boton" type="button" (click)="cerrar()">Cancelar</button>
+      </div>
+    </form>
+  </section>
+}
+
+<!-- Filtros -->
+<section class="tarjeta filtros">
+  <div class="campo">
+    <label for="busqueda">Buscar</label>
+    <input id="busqueda" type="search" [(ngModel)]="busqueda" (keyup.enter)="cargar()"
+      placeholder="Nombre o mensaje" />
+  </div>
+
+  <div class="campo">
+    <label for="f-tipo">Tipo de sensor</label>
+    <select id="f-tipo" [(ngModel)]="tipoFiltro" (ngModelChange)="cargar()">
+      <option value="">Todos</option>
+      @for (t of tipos; track t.valor) {
+        <option [value]="t.valor">{{ t.etiqueta }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-fenomeno">Fenómeno</label>
+    <select id="f-fenomeno" [(ngModel)]="fenomenoFiltro" (ngModelChange)="cargar()">
+      <option value="">Todos</option>
+      @for (f of fenomenos; track f.valor) {
+        <option [value]="f.valor">{{ f.etiqueta }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-nivel">Nivel</label>
+    <select id="f-nivel" [(ngModel)]="nivelFiltro" (ngModelChange)="cargar()">
+      <option value="">Todos</option>
+      @for (n of niveles; track n.valor) {
+        <option [value]="n.valor">{{ n.valor }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="f-estado">Estado</label>
+    <select id="f-estado" [(ngModel)]="estadoFiltro" (ngModelChange)="cargar()">
+      <option value="">Todas</option>
+      <option value="true">Activas</option>
+      <option value="false">Inactivas</option>
+    </select>
+  </div>
+
+  <div class="filtros__acciones">
+    <button class="boton" type="button" (click)="limpiar()">Limpiar</button>
+  </div>
+</section>
+
+<!-- Listado -->
+<section class="tarjeta">
+  @if (cargando()) {
+    <p class="vacio">Cargando reglas…</p>
+  } @else if (reglas().length === 0) {
+    <p class="vacio">No hay reglas que coincidan con los filtros.</p>
+  } @else {
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Sensor</th>
+            <th>Rango de disparo</th>
+            <th>Nivel</th>
+            <th>Fenómeno</th>
+            <th>Mensaje</th>
+            <th>Estado</th>
+            <th>Modificada</th>
+            @if (auth.puedeAdministrar()) {
+              <th class="centrado">Acciones</th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (regla of reglas(); track regla.id) {
+            <tr [class.fila-inactiva]="!regla.activa">
+              <td><strong>{{ regla.nombre }}</strong></td>
+              <td>
+                <span aria-hidden="true">{{ sensores[regla.tipoSensor].icono }}</span>
+                {{ sensores[regla.tipoSensor].etiqueta }}
+              </td>
+              <td class="mono">{{ rango(regla) }}</td>
+              <td>
+                <span class="insignia" [class]="'nivel-' + regla.nivel.toLowerCase()">
+                  {{ nivelMeta[regla.nivel].etiqueta }}
+                </span>
+              </td>
+              <td>
+                <span aria-hidden="true">{{ fenomenoMeta[regla.fenomeno].icono }}</span>
+                {{ fenomenoMeta[regla.fenomeno].etiqueta }}
+              </td>
+              <td class="descripcion">{{ regla.mensaje }}</td>
+              <td>
+                @if (regla.activa) {
+                  <span class="insignia nivel-verde">Activa</span>
+                } @else {
+                  <span class="insignia">Inactiva</span>
+                }
+              </td>
+              <td class="numero texto-tenue">
+                {{ (regla.fechaModificacion ?? regla.fechaCreacion) | date: 'dd/MM/yy HH:mm' }}
+              </td>
+              @if (auth.puedeAdministrar()) {
+                <td>
+                  <div class="acciones">
+                    <button class="boton boton--sm" type="button" (click)="abrirEdicion(regla)">Editar</button>
+                    <button class="boton boton--sm" type="button" (click)="alternarEstado(regla)">
+                      {{ regla.activa ? 'Desactivar' : 'Activar' }}
+                    </button>
+                    <button class="boton boton--sm boton--peligro" type="button" (click)="eliminar(regla)">
+                      Eliminar
+                    </button>
+                  </div>
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

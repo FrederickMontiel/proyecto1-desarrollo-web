@@ -14,8 +14,13 @@ public sealed class MotorRiesgo(IEnumerable<IReglaRiesgo> reglas) : IMotorRiesgo
         foreach (var regla in _reglas)
         {
             var diagnostico = regla.Evaluar(contexto);
-            if (diagnostico.EsRiesgo)
-                hallazgos.Add(diagnostico);
+            if (!diagnostico.EsRiesgo)
+                continue;
+
+            // Toda alerta debe poder rastrearse hasta la regla que la originó.
+            hallazgos.Add(diagnostico.ReglaNombre is null
+                ? diagnostico with { ReglaNombre = $"Regla integrada: {regla.Fenomeno}" }
+                : diagnostico);
         }
 
         return hallazgos

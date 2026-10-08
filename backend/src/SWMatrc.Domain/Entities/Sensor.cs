@@ -26,6 +26,13 @@ public class Sensor : EntidadBase
 
     public EstadoSensor Estado { get; set; } = EstadoSensor.Activo;
 
+    /// <summary>Referencia legible del punto de instalación: "Puente de la entrada", "Techo de la escuela".</summary>
+    public string? Ubicacion { get; set; }
+
+    public string? Descripcion { get; set; }
+
+    public DateTime? FechaInstalacion { get; set; }
+
     public decimal Latitud { get; set; }
     public decimal Longitud { get; set; }
 
@@ -70,5 +77,21 @@ public class Sensor : EntidadBase
         if (UmbralAmarilloAlto is { } aa && valor >= aa) return NivelAlerta.Amarillo;
         if (UmbralAmarilloBajo is { } ab && valor <= ab) return NivelAlerta.Amarillo;
         return NivelAlerta.Verde;
+    }
+
+    /// <summary>Umbral del sensor que corresponde a un nivel, en el sentido que cruzó el valor.</summary>
+    public decimal? UmbralPara(NivelAlerta nivel, decimal valor)
+    {
+        var (alto, bajo) = nivel switch
+        {
+            NivelAlerta.Rojo => (UmbralRojoAlto, UmbralRojoBajo),
+            NivelAlerta.Naranja => (UmbralNaranjaAlto, UmbralNaranjaBajo),
+            NivelAlerta.Amarillo => (UmbralAmarilloAlto, UmbralAmarilloBajo),
+            _ => ((decimal?)null, (decimal?)null)
+        };
+
+        if (alto is { } a && valor >= a) return a;
+        if (bajo is { } b && valor <= b) return b;
+        return alto ?? bajo;
     }
 }

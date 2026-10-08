@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { Component, OnInit, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
 import { ROLES, RolUsuario, Usuario } from '../../core/modelos/modelos';
 import { Api } from '../../core/servicios/api';
@@ -17,8 +17,9 @@ import { Notificaciones } from '../../core/servicios/notificaciones';
  */
 @Component({
   selector: 'app-usuarios',
-  imports: [ReactiveFormsModule, DatePipe],
+  imports: [ReactiveFormsModule, FormsModule, DatePipe],
   templateUrl: './usuarios.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './usuarios.scss',
 })
 export class Usuarios implements OnInit {
@@ -33,6 +34,17 @@ export class Usuarios implements OnInit {
   protected readonly guardando = signal(false);
   protected readonly formularioAbierto = signal(false);
   protected readonly editando = signal<Usuario | null>(null);
+
+  // --- Filtros ---
+  protected readonly busqueda = signal('');
+  protected readonly rolFiltro = signal<RolUsuario | ''>('');
+  protected readonly estadoFiltro = signal<'' | 'true' | 'false'>('');
+
+  /**
+   * Total de administradores activos sin filtros: la protección del último administrador
+   * no puede depender de lo que el listado esté mostrando.
+   */
+  private readonly todos = signal<Usuario[]>([]);
 
   protected readonly roles = Object.entries(ROLES).map(([valor, meta]) => ({
     valor: valor as RolUsuario,
@@ -51,7 +63,7 @@ export class Usuarios implements OnInit {
    * avisar en la interfaz antes de que la API rechace la operación.
    */
   protected readonly administradoresActivos = computed(
-    () => this.usuarios().filter((u) => u.rol === 'Administrador' && u.activo).length,
+    () => this.todos().filter((u) => u.rol === 'Administrador' && u.activo).length,
   );
 
   async ngOnInit(): Promise<void> {
@@ -62,10 +74,30 @@ export class Usuarios implements OnInit {
     this.cargando.set(true);
 
     try {
-      this.usuarios.set(await firstValueFrom(this.api.usuarios()));
+      const estado = this.estadoFiltro();
+      const [todos, filtrados] = await Promise.all([
+        firstValueFrom(this.api.usuarios()),
+        firstValueFrom(
+          this.api.usuarios({
+            busqueda: this.busqueda().trim() || undefined,
+            rol: this.rolFiltro() || undefined,
+            activo: estado === '' ? undefined : estado === 'true',
+          }),
+        ),
+      ]);
+
+      this.todos.set(todos);
+      this.usuarios.set(filtrados);
     } finally {
       this.cargando.set(false);
     }
+  }
+
+  protected async limpiar(): Promise<void> {
+    this.busqueda.set('');
+    this.rolFiltro.set('');
+    this.estadoFiltro.set('');
+    await this.cargar();
   }
 
   protected esUnoMismo(usuario: Usuario): boolean {

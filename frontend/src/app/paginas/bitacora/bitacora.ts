@@ -1,8 +1,9 @@
 import { DatePipe } from '@angular/common';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { firstValueFrom } from 'rxjs';
-import { Pagina, RegistroBitacora } from '../../core/modelos/modelos';
+import { Paginador } from '../../componentes/paginador/paginador';
+import { Pagina, RegistroBitacora, fechaIso } from '../../core/modelos/modelos';
 import { Api } from '../../core/servicios/api';
 
 /**
@@ -11,8 +12,9 @@ import { Api } from '../../core/servicios/api';
  */
 @Component({
   selector: 'app-bitacora',
-  imports: [DatePipe, FormsModule],
+  imports: [DatePipe, FormsModule, Paginador],
   templateUrl: './bitacora.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './bitacora.scss',
 })
 export class Bitacora implements OnInit {
@@ -21,9 +23,21 @@ export class Bitacora implements OnInit {
   protected readonly datos = signal<Pagina<RegistroBitacora> | null>(null);
   protected readonly cargando = signal(false);
   protected readonly pagina = signal(1);
-  protected readonly filtro = signal('');
+
+  // --- Filtros ---
+  protected readonly usuario = signal('');
+  protected readonly accion = signal('');
+  protected readonly entidad = signal('');
+  protected readonly desde = signal('');
+  protected readonly hasta = signal('');
+
+  protected readonly acciones = signal<string[]>([]);
+  protected readonly entidades = signal<string[]>([]);
 
   async ngOnInit(): Promise<void> {
+    const catalogos = await firstValueFrom(this.api.catalogosBitacora());
+    this.acciones.set(catalogos.acciones);
+    this.entidades.set(catalogos.entidades);
     await this.cargar();
   }
 
@@ -35,7 +49,11 @@ export class Bitacora implements OnInit {
         this.api.bitacora({
           pagina: this.pagina(),
           tamano: 30,
-          accion: this.filtro().trim() || undefined,
+          usuario: this.usuario().trim() || undefined,
+          accion: this.accion() || undefined,
+          entidad: this.entidad() || undefined,
+          desde: fechaIso(this.desde()),
+          hasta: fechaIso(this.hasta()),
         }),
       );
 
@@ -48,6 +66,15 @@ export class Bitacora implements OnInit {
   protected async buscar(): Promise<void> {
     this.pagina.set(1);
     await this.cargar();
+  }
+
+  protected async limpiar(): Promise<void> {
+    this.usuario.set('');
+    this.accion.set('');
+    this.entidad.set('');
+    this.desde.set('');
+    this.hasta.set('');
+    await this.buscar();
   }
 
   protected async irA(pagina: number): Promise<void> {

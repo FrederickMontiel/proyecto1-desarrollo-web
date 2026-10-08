@@ -17,6 +17,18 @@ public sealed class CuentaController(IServicioAutenticacion autenticacion, IUsua
     public async Task<ActionResult<SesionDto>> Login(LoginRequest request, CancellationToken ct) =>
         Ok(await autenticacion.IniciarSesionAsync(request, ct));
 
+    /// <summary>
+    /// Registra el cierre de sesión en la bitácora. El token es sin estado: el cliente lo
+    /// descarta y caduca por sí solo al vencer.
+    /// </summary>
+    [HttpPost("logout")]
+    [Authorize]
+    public async Task<IActionResult> Logout(CancellationToken ct)
+    {
+        await autenticacion.CerrarSesionAsync(ct);
+        return NoContent();
+    }
+
     /// <summary>Devuelve la identidad asociada al token con el que se llama.</summary>
     [HttpGet("yo")]
     [Authorize]
@@ -38,8 +50,9 @@ public sealed class CuentaController(IServicioAutenticacion autenticacion, IUsua
 
     [HttpGet("usuarios")]
     [Authorize(Policy = "Administracion")]
-    public async Task<ActionResult<IReadOnlyList<UsuarioDto>>> ListarUsuarios(CancellationToken ct) =>
-        Ok(await autenticacion.ListarUsuariosAsync(ct));
+    public async Task<ActionResult<IReadOnlyList<UsuarioDto>>> ListarUsuarios(
+        [FromQuery] FiltroUsuarios filtro, CancellationToken ct) =>
+        Ok(await autenticacion.ListarUsuariosAsync(filtro, ct));
 
     /// <summary>Habilita o deshabilita una cuenta. Las cuentas no se eliminan.</summary>
     [HttpPatch("usuarios/{id:int}/estado")]

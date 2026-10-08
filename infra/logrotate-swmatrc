@@ -1,0 +1,12 @@
+# Rotación del registro de respaldos. Los logs de los contenedores los rota Docker
+# (ver x-logs en docker-compose.yml).
+# Instalar con:  sudo cp infra/logrotate-swmatrc /etc/logrotate.d/swmatrc
+/var/log/swmatrc-*.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root adm
+}

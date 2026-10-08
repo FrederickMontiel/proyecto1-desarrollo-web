@@ -5,17 +5,49 @@
       Registro de auditoría del sistema. Solo lectura: ninguna acción puede alterarlo.
     </p>
   </div>
-
-  <form class="busqueda" (ngSubmit)="buscar()">
-    <input
-      type="search"
-      [(ngModel)]="filtro"
-      name="filtro"
-      placeholder="Filtrar por acción (SensorCreado…)"
-      aria-label="Filtrar por acción" />
-    <button class="boton" type="submit">Buscar</button>
-  </form>
 </div>
+
+<section class="tarjeta filtros">
+  <div class="campo">
+    <label for="usuario">Usuario</label>
+    <input id="usuario" type="search" [(ngModel)]="usuario" (keyup.enter)="buscar()" placeholder="Correo" />
+  </div>
+
+  <div class="campo">
+    <label for="accion">Acción</label>
+    <select id="accion" [(ngModel)]="accion" (ngModelChange)="buscar()">
+      <option value="">Todas</option>
+      @for (a of acciones(); track a) {
+        <option [value]="a">{{ a }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="entidad">Entidad</label>
+    <select id="entidad" [(ngModel)]="entidad" (ngModelChange)="buscar()">
+      <option value="">Todas</option>
+      @for (e of entidades(); track e) {
+        <option [value]="e">{{ e }}</option>
+      }
+    </select>
+  </div>
+
+  <div class="campo">
+    <label for="desde">Desde</label>
+    <input id="desde" type="datetime-local" [(ngModel)]="desde" />
+  </div>
+
+  <div class="campo">
+    <label for="hasta">Hasta</label>
+    <input id="hasta" type="datetime-local" [(ngModel)]="hasta" />
+  </div>
+
+  <div class="filtros__acciones">
+    <button class="boton boton--primario" type="button" (click)="buscar()">Filtrar</button>
+    <button class="boton" type="button" (click)="limpiar()">Limpiar</button>
+  </div>
+</section>
 
 <section class="tarjeta">
   @if (cargando()) {
@@ -27,23 +59,25 @@
       <table class="tabla">
         <thead>
           <tr>
-            <th>Fecha y hora</th>
+            <th>Fecha</th>
+            <th>Hora</th>
             <th>Usuario</th>
             <th>Acción</th>
             <th>Entidad</th>
-            <th>Detalle</th>
+            <th>Identificador</th>
+            <th>Descripción</th>
             <th>Dirección IP</th>
           </tr>
         </thead>
         <tbody>
           @for (registro of datos()!.elementos; track registro.id) {
             <tr>
-              <td class="numero">{{ registro.fechaHora | date: 'dd/MM/yy HH:mm:ss' }}</td>
+              <td class="numero">{{ registro.fechaHora | date: 'dd/MM/yy' }}</td>
+              <td class="numero">{{ registro.fechaHora | date: 'HH:mm:ss' }}</td>
               <td>{{ registro.usuarioEmail }}</td>
               <td><span class="insignia accion">{{ registro.accion }}</span></td>
-              <td class="texto-tenue">
-                {{ registro.entidad }}@if (registro.entidadId) { <span class="mono">#{{ registro.entidadId }}</span> }
-              </td>
+              <td class="texto-tenue">{{ registro.entidad }}</td>
+              <td class="mono texto-tenue">{{ registro.entidadId ? '#' + registro.entidadId : '—' }}</td>
               <td class="detalle texto-tenue">{{ detalleLegible(registro) }}</td>
               <td class="mono texto-tenue">{{ registro.direccionIp ?? '—' }}</td>
             </tr>
@@ -52,27 +86,6 @@
       </table>
     </div>
 
-    <nav class="paginacion" aria-label="Paginación de la bitácora">
-      <button
-        class="boton boton--sm"
-        type="button"
-        [disabled]="datos()!.pagina <= 1"
-        (click)="irA(datos()!.pagina - 1)">
-        ← Anterior
-      </button>
-
-      <span class="texto-tenue">
-        Página {{ datos()!.pagina }} de {{ datos()!.totalPaginas }}
-        · {{ datos()!.totalElementos }} registros
-      </span>
-
-      <button
-        class="boton boton--sm"
-        type="button"
-        [disabled]="datos()!.pagina >= datos()!.totalPaginas"
-        (click)="irA(datos()!.pagina + 1)">
-        Siguiente →
-      </button>
-    </nav>
+    <app-paginador [pagina]="datos()!" unidad="registros" (cambiar)="irA($event)" />
   }
 </section>

@@ -13,9 +13,19 @@ export type TipoFenomeno =
   | 'Helada'
   | 'IncendioForestal';
 
-export type TipoSensor = 'Temperatura' | 'Humedad' | 'Viento' | 'Lluvia' | 'NivelRio';
+export type TipoSensor =
+  | 'Temperatura'
+  | 'Humedad'
+  | 'Viento'
+  | 'Lluvia'
+  | 'NivelRio'
+  | 'NivelReservorio'
+  | 'Humo'
+  | 'Otro';
 
 export type EstadoSensor = 'Inactivo' | 'Activo' | 'SinSenal';
+
+export type EstadoAlerta = 'Activa' | 'Atendida' | 'Cerrada';
 
 export type RolUsuario = 'Consulta' | 'Operador' | 'Administrador';
 
@@ -27,6 +37,7 @@ export interface Usuario {
   rolNombre: string;
   activo: boolean;
   ultimoAcceso: string | null;
+  fechaCreacion: string;
 }
 
 /** Alta de una cuenta. El correo queda fijado en este momento: es la credencial de acceso. */
@@ -54,11 +65,68 @@ export interface Comunidad {
   nombre: string;
   municipio: string;
   departamento: string;
+  pais: string;
+  descripcion: string | null;
   latitud: number;
   longitud: number;
   poblacion: number;
   activa: boolean;
   totalSensores: number;
+  sensoresActivos: number;
+  fechaCreacion: string;
+}
+
+export interface GuardarComunidad {
+  nombre: string;
+  municipio: string;
+  departamento: string;
+  pais: string;
+  latitud: number;
+  longitud: number;
+  poblacion: number;
+  descripcion: string | null;
+  activa: boolean;
+}
+
+export interface ReglaAlerta {
+  id: number;
+  nombre: string;
+  tipoSensor: TipoSensor;
+  valorMinimo: number | null;
+  valorMaximo: number | null;
+  nivel: NivelAlerta;
+  fenomeno: TipoFenomeno;
+  mensaje: string;
+  activa: boolean;
+  fechaCreacion: string;
+  fechaModificacion: string | null;
+}
+
+export type GuardarRegla = Omit<ReglaAlerta, 'id' | 'fechaCreacion' | 'fechaModificacion'>;
+
+export interface LecturaHistorica {
+  id: number;
+  sensorId: number;
+  sensorCodigo: string;
+  sensorNombre: string;
+  comunidadId: number;
+  comunidadNombre: string;
+  tipo: TipoSensor;
+  valor: number;
+  unidadMedida: string;
+  estadoSensor: EstadoSensor;
+  nivel: NivelAlerta;
+  fechaHora: string;
+}
+
+export interface EstadisticasHistorial {
+  totalEventos: number;
+  eventosAbiertos: number;
+  duracionPromedioMinutos: number | null;
+  porFenomeno: Record<string, number>;
+  porNivel: Record<string, number>;
+  porComunidad: Record<string, number>;
+  porDia: Record<string, number>;
 }
 
 export interface Sensor {
@@ -71,6 +139,9 @@ export interface Sensor {
   tipoNombre: string;
   unidadMedida: string;
   estado: EstadoSensor;
+  ubicacion: string | null;
+  descripcion: string | null;
+  fechaInstalacion: string | null;
   latitud: number;
   longitud: number;
   valorMinimo: number;
@@ -105,18 +176,25 @@ export interface Alerta {
   comunidadNombre: string;
   sensorId: number | null;
   sensorCodigo: string | null;
+  sensorNombre: string | null;
   nivel: NivelAlerta;
   nivelNombre: string;
   fenomeno: TipoFenomeno;
   fenomenoNombre: string;
   mensaje: string;
   valorDisparo: number | null;
+  umbral: number | null;
+  unidadMedida: string | null;
+  reglaId: number | null;
+  reglaNombre: string;
+  estado: EstadoAlerta;
   fechaHora: string;
   fechaCierre: string | null;
   activa: boolean;
   reconocida: boolean;
   reconocidaPor: string | null;
   fechaReconocimiento: string | null;
+  cerradaPor: string | null;
 }
 
 export interface Evento {
@@ -129,7 +207,10 @@ export interface Evento {
   nivelNombre: string;
   descripcion: string;
   origenSensor: string;
+  sensorId: number | null;
   valorRegistrado: number | null;
+  estado: EstadoAlerta;
+  usuarioResponsable: string | null;
   fechaInicio: string;
   fechaFin: string | null;
   duracionMinutos: number | null;
@@ -160,8 +241,10 @@ export interface SerieHistorica {
 }
 
 export interface ResumenDashboard {
+  totalComunidades: number;
   totalSensores: number;
   sensoresActivos: number;
+  sensoresInactivos: number;
   sensoresSinSenal: number;
   alertasActivas: number;
   eventosUltimas24h: number;
@@ -211,6 +294,10 @@ export interface CrearSensor {
   nombre: string;
   tipo: number;
   unidadMedida?: string;
+  ubicacion?: string | null;
+  descripcion?: string | null;
+  fechaInstalacion?: string | null;
+  estado?: EstadoSensor;
   latitud?: number;
   longitud?: number;
   valorMinimo?: number;
@@ -225,7 +312,7 @@ export interface CrearSensor {
   umbralRojoBajo?: number | null;
 }
 
-export type ActualizarSensor = Partial<Omit<CrearSensor, 'comunidadId' | 'codigo' | 'tipo'>>;
+export type ActualizarSensor = Partial<Omit<CrearSensor, 'codigo' | 'tipo'>>;
 
 /** Metadatos de presentación de cada nivel: color, etiqueta y urgencia del aviso sonoro. */
 export const NIVELES: Record<NivelAlerta, { etiqueta: string; color: string; orden: number }> = {
@@ -252,11 +339,11 @@ export const ROLES: Record<RolUsuario, { etiqueta: string; descripcion: string }
   },
   Operador: {
     etiqueta: 'Operador',
-    descripcion: 'Reconoce alertas, activa sensores y fija valores manuales.',
+    descripcion: 'Atiende y cierra alertas, activa sensores y registra lecturas manuales.',
   },
   Administrador: {
     etiqueta: 'Administrador',
-    descripcion: 'Control total: sensores, cuentas, bitácora y reinicio del sistema.',
+    descripcion: 'Control total: comunidades, sensores, reglas, cuentas, bitácora y reinicio.',
   },
 };
 
@@ -266,4 +353,35 @@ export const SENSORES: Record<TipoSensor, { etiqueta: string; icono: string }> =
   Viento: { etiqueta: 'Velocidad del viento', icono: '💨' },
   Lluvia: { etiqueta: 'Nivel de lluvia', icono: '🌧️' },
   NivelRio: { etiqueta: 'Nivel del río', icono: '🏞️' },
+  NivelReservorio: { etiqueta: 'Nivel del reservorio', icono: '🚰' },
+  Humo: { etiqueta: 'Humo / incendio', icono: '🔥' },
+  Otro: { etiqueta: 'Otro sensor ambiental', icono: '📟' },
 };
+
+/** Orden de los tipos tal como los numera el enumerado del backend (1..8). */
+export const ORDEN_TIPOS_SENSOR: TipoSensor[] = [
+  'Temperatura',
+  'Humedad',
+  'Viento',
+  'Lluvia',
+  'NivelRio',
+  'NivelReservorio',
+  'Humo',
+  'Otro',
+];
+
+export const ESTADOS_ALERTA: Record<EstadoAlerta, { etiqueta: string; clase: string }> = {
+  Activa: { etiqueta: 'Activa', clase: 'nivel-naranja' },
+  Atendida: { etiqueta: 'Atendida', clase: 'nivel-amarillo' },
+  Cerrada: { etiqueta: 'Cerrada', clase: '' },
+};
+
+/** Los cinco fenómenos del protocolo, sin el valor neutro del enumerado. */
+export const FENOMENOS_PROTOCOLO = (Object.keys(FENOMENOS) as TipoFenomeno[]).filter(
+  (f) => f !== 'Ninguno',
+);
+
+/** Convierte el valor de un control datetime-local a ISO, para que el servidor no dude de la zona horaria. */
+export function fechaIso(valor: string): string | undefined {
+  return valor ? new Date(valor).toISOString() : undefined;
+}

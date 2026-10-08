@@ -8,6 +8,7 @@ import {
   input,
   signal,
   viewChild,
+  ChangeDetectionStrategy
 } from '@angular/core';
 import {
   CategoryScale,
@@ -45,6 +46,7 @@ Chart.register(
 @Component({
   selector: 'app-grafico-evolucion',
   templateUrl: './grafico-evolucion.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './grafico-evolucion.scss',
 })
 export class GraficoEvolucion implements AfterViewInit, OnDestroy {

@@ -7,7 +7,12 @@ public enum TipoSensor
     Humedad = 2,
     Viento = 3,
     Lluvia = 4,
-    NivelRio = 5
+    NivelRio = 5,
+    NivelReservorio = 6,
+    /// <summary>Detector de humo o de focos de calor para incendios forestales.</summary>
+    Humo = 7,
+    /// <summary>Cualquier otra magnitud ambiental; sus umbrales se definen a mano.</summary>
+    Otro = 8
 }
 
 /// <summary>
@@ -51,4 +56,15 @@ public enum EstadoSensor
     Activo = 1,
     /// <summary>El sensor está activo pero no reporta lecturas dentro del umbral de tiempo esperado.</summary>
     SinSenal = 2
+}
+
+/// <summary>
+/// Ciclo de vida de una alerta. Una alerta nace activa; un operador la atiende cuando se
+/// hace cargo y queda cerrada cuando la condición se normaliza o alguien la cierra a mano.
+/// </summary>
+public enum EstadoAlerta
+{
+    Activa = 0,
+    Atendida = 1,
+    Cerrada = 2
 }

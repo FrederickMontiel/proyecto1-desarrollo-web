@@ -17,6 +17,9 @@ public static class DependencyInjection
         services.AddScoped<IServicioMonitoreo, ServicioMonitoreo>();
         services.AddScoped<IServicioAlertas, ServicioAlertas>();
         services.AddScoped<IServicioHistorial, ServicioHistorial>();
+        services.AddScoped<IServicioComunidades, ServicioComunidades>();
+        services.AddScoped<IServicioReglas, ServicioReglas>();
+        services.AddScoped<IServicioLecturas, ServicioLecturas>();
 
         // Las reglas son inmutables y sin estado, así que una sola instancia basta.
         // Añadir un fenómeno nuevo se reduce a sumar una línea aquí.

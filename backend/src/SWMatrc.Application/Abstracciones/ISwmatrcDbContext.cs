@@ -17,6 +17,7 @@ public interface ISwmatrcDbContext
     DbSet<Alerta> Alertas { get; }
     DbSet<EventoHistorial> Eventos { get; }
     DbSet<Bitacora> Bitacoras { get; }
+    DbSet<ReglaAlerta> ReglasAlerta { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

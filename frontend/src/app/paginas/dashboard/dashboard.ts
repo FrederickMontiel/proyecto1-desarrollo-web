@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { GraficoEvolucion } from '../../componentes/grafico-evolucion/grafico-evolucion';
 import { MapaComunidad } from '../../componentes/mapa-comunidad/mapa-comunidad';
@@ -19,6 +19,7 @@ import { Notificaciones } from '../../core/servicios/notificaciones';
   selector: 'app-dashboard',
   imports: [TarjetaSensor, PanelAlertas, GraficoEvolucion, MapaComunidad, DatePipe],
   templateUrl: './dashboard.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './dashboard.scss',
 })
 export class Dashboard {
@@ -31,6 +32,9 @@ export class Dashboard {
   protected readonly reiniciando = signal(false);
 
   protected readonly nivelGlobal = computed(() => NIVELES[this.estado.nivelGlobal()]);
+
+  /** El resumen viene filtrado por la comunidad elegida; el total de comunidades es global. */
+  protected readonly totalComunidades = computed(() => this.estado.comunidades().length);
 
   /** Fenómenos con alerta abierta, para el encabezado de situación. */
   protected readonly fenomenosActivos = computed(() =>
@@ -49,7 +53,12 @@ export class Dashboard {
 
   protected alReconocer(alerta: Alerta): void {
     this.estado.marcarReconocida(alerta);
-    this.notificaciones.informar('Alerta reconocida', 'Quedó registrada en la bitácora del sistema.');
+    this.notificaciones.informar('Alerta atendida', 'Quedó registrada en la bitácora del sistema.');
+  }
+
+  protected alCerrar(): void {
+    void this.estado.recargar();
+    this.notificaciones.informar('Alerta cerrada', 'El cierre quedó registrado en la bitácora.');
   }
 
   protected async reiniciar(): Promise<void> {

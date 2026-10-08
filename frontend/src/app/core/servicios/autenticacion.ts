@@ -45,6 +45,23 @@ export class Autenticacion {
     this.sesion.set(sesion);
   }
 
+  /**
+   * Cierre de sesión iniciado por el usuario: se avisa a la API para que quede en la
+   * bitácora y luego se descarta el token. Si la llamada falla —red caída, token ya
+   * vencido—, la sesión local se cierra igualmente.
+   */
+  async salir(): Promise<void> {
+    if (this.token) {
+      try {
+        await firstValueFrom(this.http.post<void>(`${environment.urlApi}/cuenta/logout`, null));
+      } catch {
+        // El cierre local no depende de que el servidor responda.
+      }
+    }
+
+    this.cerrarSesion();
+  }
+
   cerrarSesion(redirigir = true): void {
     localStorage.removeItem(CLAVE_SESION);
     this.sesion.set(null);

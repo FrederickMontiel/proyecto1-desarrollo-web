@@ -1,5 +1,5 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, input, ChangeDetectionStrategy } from '@angular/core';
 import { NIVELES, SENSORES, Sensor } from '../../core/modelos/modelos';
 
 /**
@@ -12,6 +12,7 @@ import { NIVELES, SENSORES, Sensor } from '../../core/modelos/modelos';
   selector: 'app-tarjeta-sensor',
   imports: [DecimalPipe, DatePipe],
   templateUrl: './tarjeta-sensor.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './tarjeta-sensor.scss',
 })
 export class TarjetaSensor {

@@ -125,9 +125,12 @@ internal sealed class BitacoraMuda : IServicioBitacora
         return Task.CompletedTask;
     }
 
-    public Task<PaginaDto<BitacoraDto>> ListarAsync(
-        int pagina, int tamano, string? filtroAccion, CancellationToken ct = default) =>
+    public Task<PaginaDto<BitacoraDto>> ListarAsync(FiltroBitacora filtro, CancellationToken ct = default) =>
         Task.FromResult(new PaginaDto<BitacoraDto>());
+
+    public Task<(IReadOnlyList<string> Acciones, IReadOnlyList<string> Entidades)> CatalogosAsync(
+        CancellationToken ct = default) =>
+        Task.FromResult<(IReadOnlyList<string>, IReadOnlyList<string>)>(([], []));
 }
 
 /// <summary>Identidad fija para las pruebas que dependen de quién ejecuta la acción.</summary>

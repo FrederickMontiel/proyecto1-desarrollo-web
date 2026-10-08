@@ -30,10 +30,16 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("CerradaPorUsuarioId")
+                        .HasColumnType("int");
+
                     b.Property<int>("CiclosSinRiesgo")
                         .HasColumnType("int");
 
                     b.Property<int>("ComunidadId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Estado")
                         .HasColumnType("int");
 
                     b.Property<DateTime?>("FechaCierre")
@@ -68,8 +74,20 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
                     b.Property<int?>("ReconocidaPorUsuarioId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("ReglaAlertaId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReglaNombre")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
                     b.Property<int?>("SensorId")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("Umbral")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("decimal(10,3)");
 
                     b.Property<decimal?>("ValorDisparo")
                         .HasPrecision(10, 3)
@@ -77,10 +95,14 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CerradaPorUsuarioId");
+
                     b.HasIndex("FechaHora")
                         .IsDescending();
 
                     b.HasIndex("ReconocidaPorUsuarioId");
+
+                    b.HasIndex("ReglaAlertaId");
 
                     b.HasIndex("SensorId");
 
@@ -160,6 +182,10 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("datetime2");
 
@@ -183,6 +209,11 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
                         .IsRequired()
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Pais")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
 
                     b.Property<int>("Poblacion")
                         .HasColumnType("int");
@@ -214,6 +245,9 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
                         .HasMaxLength(600)
                         .HasColumnType("nvarchar(600)");
 
+                    b.Property<int>("Estado")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("FechaCreacion")
                         .HasColumnType("datetime2");
 
@@ -237,6 +271,12 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
                         .HasMaxLength(160)
                         .HasColumnType("nvarchar(160)");
 
+                    b.Property<int?>("SensorId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("UsuarioResponsableId")
+                        .HasColumnType("int");
+
                     b.Property<decimal?>("ValorRegistrado")
                         .HasPrecision(10, 3)
                         .HasColumnType("decimal(10,3)");
@@ -246,6 +286,10 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
                     b.HasIndex("AlertaId");
 
                     b.HasIndex("Fenomeno");
+
+                    b.HasIndex("SensorId");
+
+                    b.HasIndex("UsuarioResponsableId");
 
                     b.HasIndex("ComunidadId", "FechaInicio")
                         .IsDescending(false, true);
@@ -261,11 +305,19 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
+                    b.Property<int>("EstadoSensor")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("FechaHora")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("SensorId")
                         .HasColumnType("int");
+
+                    b.Property<string>("UnidadMedida")
+                        .IsRequired()
+                        .HasMaxLength(15)
+                        .HasColumnType("nvarchar(15)");
 
                     b.Property<decimal>("Valor")
                         .HasPrecision(10, 3)
@@ -277,6 +329,60 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
                         .IsDescending(false, true);
 
                     b.ToTable("Lecturas", (string)null);
+                });
+
+            modelBuilder.Entity("SWMatrc.Domain.Entities.ReglaAlerta", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaModificacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Fenomeno")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Mensaje")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Nivel")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("TipoSensor")
+                        .HasColumnType("int");
+
+                    b.Property<decimal?>("ValorMaximo")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("decimal(10,3)");
+
+                    b.Property<decimal?>("ValorMinimo")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("decimal(10,3)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Nombre")
+                        .IsUnique();
+
+                    b.HasIndex("TipoSensor", "Activa");
+
+                    b.ToTable("ReglasAlerta", (string)null);
                 });
 
             modelBuilder.Entity("SWMatrc.Domain.Entities.Sensor", b =>
@@ -295,10 +401,17 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
                     b.Property<int>("ComunidadId")
                         .HasColumnType("int");
 
+                    b.Property<string>("Descripcion")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<int>("Estado")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("FechaCreacion")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FechaInstalacion")
                         .HasColumnType("datetime2");
 
                     b.Property<DateTime?>("FechaModificacion")
@@ -319,6 +432,10 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
 
                     b.Property<int>("Tipo")
                         .HasColumnType("int");
+
+                    b.Property<string>("Ubicacion")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
 
                     b.Property<DateTime?>("UltimaLectura")
                         .HasColumnType("datetime2");
@@ -426,6 +543,11 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
 
             modelBuilder.Entity("SWMatrc.Domain.Entities.Alerta", b =>
                 {
+                    b.HasOne("SWMatrc.Domain.Entities.Usuario", "CerradaPorUsuario")
+                        .WithMany()
+                        .HasForeignKey("CerradaPorUsuarioId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("SWMatrc.Domain.Entities.Comunidad", "Comunidad")
                         .WithMany("Alertas")
                         .HasForeignKey("ComunidadId")
@@ -437,14 +559,23 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
                         .HasForeignKey("ReconocidaPorUsuarioId")
                         .OnDelete(DeleteBehavior.NoAction);
 
+                    b.HasOne("SWMatrc.Domain.Entities.ReglaAlerta", "ReglaAlerta")
+                        .WithMany()
+                        .HasForeignKey("ReglaAlertaId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("SWMatrc.Domain.Entities.Sensor", "Sensor")
                         .WithMany("Alertas")
                         .HasForeignKey("SensorId")
                         .OnDelete(DeleteBehavior.NoAction);
 
+                    b.Navigation("CerradaPorUsuario");
+
                     b.Navigation("Comunidad");
 
                     b.Navigation("ReconocidaPorUsuario");
+
+                    b.Navigation("ReglaAlerta");
 
                     b.Navigation("Sensor");
                 });
@@ -472,9 +603,23 @@ namespace SWMatrc.Infrastructure.Persistencia.Migraciones
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("SWMatrc.Domain.Entities.Sensor", "Sensor")
+                        .WithMany()
+                        .HasForeignKey("SensorId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("SWMatrc.Domain.Entities.Usuario", "UsuarioResponsable")
+                        .WithMany()
+                        .HasForeignKey("UsuarioResponsableId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("Alerta");
 
                     b.Navigation("Comunidad");
+
+                    b.Navigation("Sensor");
+
+                    b.Navigation("UsuarioResponsable");
                 });
 
             modelBuilder.Entity("SWMatrc.Domain.Entities.Lectura", b =>

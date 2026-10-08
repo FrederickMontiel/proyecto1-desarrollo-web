@@ -50,16 +50,27 @@ public sealed class ServicioBitacora(
         }
     }
 
-    public async Task<PaginaDto<BitacoraDto>> ListarAsync(
-        int pagina, int tamano, string? filtroAccion, CancellationToken ct = default)
+    public async Task<PaginaDto<BitacoraDto>> ListarAsync(FiltroBitacora filtro, CancellationToken ct = default)
     {
-        pagina = Math.Max(1, pagina);
-        tamano = Math.Clamp(tamano, 1, 200);
+        var pagina = Math.Max(1, filtro.Pagina);
+        var tamano = Math.Clamp(filtro.Tamano, 1, 200);
 
         var consulta = db.Bitacoras.AsNoTracking().AsQueryable();
 
-        if (!string.IsNullOrWhiteSpace(filtroAccion))
-            consulta = consulta.Where(b => b.Accion.Contains(filtroAccion));
+        if (!string.IsNullOrWhiteSpace(filtro.Usuario))
+            consulta = consulta.Where(b => b.UsuarioEmail.Contains(filtro.Usuario.Trim()));
+
+        if (!string.IsNullOrWhiteSpace(filtro.Accion))
+            consulta = consulta.Where(b => b.Accion.Contains(filtro.Accion.Trim()));
+
+        if (!string.IsNullOrWhiteSpace(filtro.Entidad))
+            consulta = consulta.Where(b => b.Entidad == filtro.Entidad.Trim());
+
+        if (filtro.Desde is { } desde)
+            consulta = consulta.Where(b => b.FechaHora >= desde);
+
+        if (filtro.Hasta is { } hasta)
+            consulta = consulta.Where(b => b.FechaHora <= hasta);
 
         var total = await consulta.CountAsync(ct);
 
@@ -79,5 +90,13 @@ public sealed class ServicioBitacora(
             TamanoPagina = tamano,
             TotalElementos = total
         };
+    }
+
+    public async Task<(IReadOnlyList<string> Acciones, IReadOnlyList<string> Entidades)> CatalogosAsync(
+        CancellationToken ct = default)
+    {
+        var acciones = await db.Bitacoras.AsNoTracking().Select(b => b.Accion).Distinct().OrderBy(a => a).ToListAsync(ct);
+        var entidades = await db.Bitacoras.AsNoTracking().Select(b => b.Entidad).Distinct().OrderBy(e => e).ToListAsync(ct);
+        return (acciones, entidades);
     }
 }

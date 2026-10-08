@@ -1,6 +1,0 @@
-// Dashboard
-// Login form
-// Product list
-// Order history
-// Category filter
-// Responsive

@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { Autenticacion } from '../../core/servicios/autenticacion';
 import { EstadoMonitoreo } from '../../core/servicios/estado-monitoreo';
@@ -21,6 +21,7 @@ interface EntradaMenu {
   selector: 'app-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, Avisos],
   templateUrl: './shell.html',
+  changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './shell.scss',
 })
 export class Shell implements OnInit {
@@ -35,7 +36,10 @@ export class Shell implements OnInit {
     { ruta: '/dashboard', etiqueta: 'Monitoreo', icono: '📊' },
     { ruta: '/alertas', etiqueta: 'Alertas', icono: '🚨' },
     { ruta: '/historial', etiqueta: 'Historial', icono: '🗂️' },
+    { ruta: '/comunidades', etiqueta: 'Comunidades', icono: '🏘️' },
     { ruta: '/sensores', etiqueta: 'Sensores', icono: '🛰️' },
+    { ruta: '/lecturas', etiqueta: 'Lecturas', icono: '📈' },
+    { ruta: '/reglas', etiqueta: 'Reglas de alerta', icono: '⚙️' },
     { ruta: '/usuarios', etiqueta: 'Usuarios', icono: '👥', soloAdministrador: true },
     { ruta: '/bitacora', etiqueta: 'Bitácora', icono: '📝', soloAdministrador: true },
   ];
@@ -69,7 +73,7 @@ export class Shell implements OnInit {
     // Primero se cierra el WebSocket: dejarlo abierto mantendría vivo un canal
     // autenticado con un token que el usuario acaba de abandonar.
     await this.estado.detener();
-    this.auth.cerrarSesion();
+    await this.auth.salir();
   }
 
   protected etiquetaConexion(): string {

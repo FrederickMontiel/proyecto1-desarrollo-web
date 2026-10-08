@@ -31,5 +31,16 @@ public class EventoHistorial : EntidadBase
 
     public decimal? ValorRegistrado { get; set; }
 
+    /// <summary>Sensor disparador. Queda en nulo si el sensor se elimina; <see cref="OrigenSensor"/> conserva su nombre.</summary>
+    public int? SensorId { get; set; }
+    public Sensor? Sensor { get; set; }
+
+    /// <summary>Refleja el estado de la alerta asociada: activa, atendida o cerrada.</summary>
+    public EstadoAlerta Estado { get; set; } = EstadoAlerta.Activa;
+
+    /// <summary>Usuario que atendió o cerró el episodio, cuando corresponde.</summary>
+    public int? UsuarioResponsableId { get; set; }
+    public Usuario? UsuarioResponsable { get; set; }
+
     public TimeSpan? Duracion => FechaFin is null ? null : FechaFin - FechaInicio;
 }
