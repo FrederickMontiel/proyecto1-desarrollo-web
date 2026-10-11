@@ -1,0 +1,11 @@
+# Contexto compartido de los servicios .NET (Community, Sensor). Los servicios en otros
+# lenguajes se construyen con su propia carpeta como contexto y su propio .dockerignore.
+**/bin/
+**/obj/
+**/tests/
+**/.vs/
+**/*.user
+auth-service/
+audit-service/
+alert-service/
+report-service/
