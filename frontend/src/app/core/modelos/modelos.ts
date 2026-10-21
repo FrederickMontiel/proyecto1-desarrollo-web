@@ -1,6 +1,7 @@
 /**
- * Contratos de datos compartidos con la API. Reflejan los DTO de C# uno a uno; los
- * enumerados viajan como texto porque el backend los serializa con JsonStringEnumConverter.
+ * Contratos de datos compartidos con la API. Desde la Fase 3 los responde el API Gateway
+ * en nombre de seis microservicios (.NET, NestJS, Spring Boot y FastAPI); todos serializan
+ * los enumerados como texto y los campos en camelCase, así que los contratos no cambiaron.
  */
 
 export type NivelAlerta = 'Verde' | 'Amarillo' | 'Naranja' | 'Rojo';
@@ -35,6 +36,8 @@ export interface Usuario {
   email: string;
   rol: RolUsuario;
   rolNombre: string;
+  /** Permisos efectivos del rol (`reportes:descargar`, `sensores:operar`…). */
+  permisos: string[];
   activo: boolean;
   ultimoAcceso: string | null;
   fechaCreacion: string;
@@ -73,6 +76,8 @@ export interface Comunidad {
   activa: boolean;
   totalSensores: number;
   sensoresActivos: number;
+  /** Falso si Sensor Service no respondió: los conteos valen 0 pero no significan "sin sensores". */
+  conteoSensoresDisponible?: boolean;
   fechaCreacion: string;
 }
 
@@ -115,7 +120,8 @@ export interface LecturaHistorica {
   valor: number;
   unidadMedida: string;
   estadoSensor: EstadoSensor;
-  nivel: NivelAlerta;
+  /** Nivel con que se vio la lectura; nulo si Alert Service no pudo evaluarla. */
+  nivel: NivelAlerta | null;
   fechaHora: string;
 }
 
@@ -166,7 +172,8 @@ export interface Lectura {
   tipo: TipoSensor;
   valor: number;
   unidadMedida: string;
-  nivel: NivelAlerta;
+  /** Nulo si Alert Service no pudo evaluar la lectura. */
+  nivel: NivelAlerta | null;
   fechaHora: string;
 }
 
@@ -223,6 +230,8 @@ export interface EstadoComunidad {
   nivelGlobalNombre: string;
   sensores: Sensor[];
   alertasActivas: Alerta[];
+  /** Falso si Alert Service no respondió: la lista vacía no significa "sin alertas". */
+  alertasDisponibles?: boolean;
   marca: string;
 }
 
@@ -242,15 +251,138 @@ export interface SerieHistorica {
 
 export interface ResumenDashboard {
   totalComunidades: number;
+  comunidadesActivas: number;
   totalSensores: number;
   sensoresActivos: number;
   sensoresInactivos: number;
   sensoresSinSenal: number;
+  sensoresPorTipo: Record<string, number>;
   alertasActivas: number;
   eventosUltimas24h: number;
   nivelGlobal: NivelAlerta;
   alertasPorNivel: Record<string, number>;
+  alertasPorFenomeno: Record<string, number>;
   eventosPorFenomeno: Record<string, number>;
+  /** Alertas emitidas en los últimos 30 días. */
+  alertasEnPeriodo: number;
+  alertasPeriodoPorNivel: Record<string, number>;
+  alertasPeriodoPorFenomeno: Record<string, number>;
+  totalEventosPeriodo: number;
+  estadisticasClimaticas: EstadisticaClimatica[];
+  /** Qué microservicios respondieron al armar el resumen. */
+  disponibles: { community: boolean; sensor: boolean; alert: boolean };
+}
+
+/** Promedio, mínimo, máximo y suma de una magnitud en el periodo (RF-REP-07). */
+export interface EstadisticaClimatica {
+  tipo: TipoSensor;
+  unidadMedida: string;
+  lecturas: number;
+  promedio: number;
+  minimo: number;
+  maximo: number;
+  suma: number;
+}
+
+/** Respuesta de `GET /api/reports/dashboard` (Report Service, sección 15). */
+export interface IndicadoresDashboard {
+  periodo: { desde: string; hasta: string };
+  comunidades: { total: number; activas: number } | null;
+  sensores: {
+    total: number;
+    activos: number;
+    inactivos: number;
+    sinComunicacion: number;
+    porTipo: Record<string, number>;
+    porNivel: Record<string, number>;
+  } | null;
+  alertas: {
+    alertasActivas: number;
+    nivelGlobal: NivelAlerta;
+    alertasPorNivel: Record<string, number>;
+    alertasPorFenomeno: Record<string, number>;
+    eventosUltimas24h: number;
+    eventosPorFenomeno: Record<string, number>;
+    alertasEnPeriodo: number;
+    alertasPeriodoPorNivel: Record<string, number>;
+    alertasPeriodoPorFenomeno: Record<string, number>;
+  } | null;
+  eventos: EstadisticasHistorial | null;
+  estadisticasClimaticas: EstadisticaClimatica[] | null;
+  disponibles: { community: boolean; sensor: boolean; alert: boolean };
+}
+
+/** Umbrales de un sensor. Desde la Fase 3 los administra Alert Service. */
+export interface Umbrales {
+  umbralAmarilloAlto: number | null;
+  umbralNaranjaAlto: number | null;
+  umbralRojoAlto: number | null;
+  umbralAmarilloBajo: number | null;
+  umbralNaranjaBajo: number | null;
+  umbralRojoBajo: number | null;
+}
+
+// --- Reportes (Report Service) ---
+
+export type CodigoReporte =
+  | 'COMMUNITIES'
+  | 'SENSORS'
+  | 'READINGS'
+  | 'ALERTS'
+  | 'EVENT_HISTORY'
+  | 'SENSOR_STATUS'
+  | 'CLIMATE_STATS'
+  | 'EXECUTIVE';
+
+export type EstadoReporte = 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
+export type FiltroReporte =
+  | 'comunidadId'
+  | 'sensorId'
+  | 'tipoSensor'
+  | 'estadoSensor'
+  | 'fenomeno'
+  | 'nivel'
+  | 'estado'
+  | 'activa'
+  | 'departamento'
+  | 'desde'
+  | 'hasta';
+
+export interface TipoReporte {
+  type: CodigoReporte;
+  requirement: string;
+  name: string;
+  description: string;
+  filters: FiltroReporte[];
+}
+
+export interface SolicitudReporte {
+  type: CodigoReporte;
+  filters: Partial<Record<FiltroReporte, string | number | boolean>>;
+}
+
+/** Metadata de un reporte (sección 18 del documento). */
+export interface Reporte {
+  reportId: string;
+  type: CodigoReporte;
+  typeName: string;
+  requirement: string;
+  generatedBy: { id: number | null; email: string; name: string };
+  generatedAt: string;
+  filters: Record<string, string | number | boolean>;
+  status: EstadoReporte;
+  statusLabel: string;
+  fileName: string;
+  fileSize?: number;
+  rows?: number;
+  durationMs?: number;
+  warnings?: string[];
+  error?: string;
+  completedAt?: string;
+  downloadCount: number;
+  lastDownloadAt?: string;
+  downloads?: { by: { email: string; name: string }; at: string }[];
 }
 
 export interface RegistroBitacora {

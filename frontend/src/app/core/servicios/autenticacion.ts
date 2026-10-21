@@ -32,13 +32,26 @@ export class Autenticacion {
   /** Puede administrar la red, los usuarios y reiniciar el sistema. */
   readonly puedeAdministrar = computed(() => this.rol() === 'Administrador');
 
+  /** Permisos efectivos que emitió el Auth Service para la sesión. */
+  readonly permisos = computed<string[]>(() => this.sesion()?.usuario.permisos ?? []);
+
+  /** Genera reportes PDF (Operador y Administrador). */
+  readonly puedeGenerarReportes = computed(() => this.tiene('reportes:generar'));
+
+  /** RF-REP-10: la descarga de reportes es exclusiva de los administradores. */
+  readonly puedeDescargarReportes = computed(() => this.tiene('reportes:descargar'));
+
+  tiene(permiso: string): boolean {
+    return this.permisos().includes(permiso);
+  }
+
   get token(): string | null {
     return this.sesion()?.token ?? null;
   }
 
   async iniciarSesion(email: string, password: string): Promise<void> {
     const sesion = await firstValueFrom(
-      this.http.post<Sesion>(`${environment.urlApi}/cuenta/login`, { email, password }),
+      this.http.post<Sesion>(`${environment.urlApi}/auth/login`, { email, password }),
     );
 
     localStorage.setItem(CLAVE_SESION, JSON.stringify(sesion));
@@ -53,7 +66,7 @@ export class Autenticacion {
   async salir(): Promise<void> {
     if (this.token) {
       try {
-        await firstValueFrom(this.http.post<void>(`${environment.urlApi}/cuenta/logout`, null));
+        await firstValueFrom(this.http.post<void>(`${environment.urlApi}/auth/logout`, null));
       } catch {
         // El cierre local no depende de que el servidor responda.
       }

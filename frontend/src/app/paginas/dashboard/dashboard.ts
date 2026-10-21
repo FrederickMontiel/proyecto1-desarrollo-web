@@ -1,11 +1,11 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe, KeyValuePipe } from '@angular/common';
 import { Component, computed, inject, signal, ChangeDetectionStrategy } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { GraficoEvolucion } from '../../componentes/grafico-evolucion/grafico-evolucion';
 import { MapaComunidad } from '../../componentes/mapa-comunidad/mapa-comunidad';
 import { PanelAlertas } from '../../componentes/panel-alertas/panel-alertas';
 import { TarjetaSensor } from '../../componentes/tarjeta-sensor/tarjeta-sensor';
-import { Alerta, FENOMENOS, NIVELES } from '../../core/modelos/modelos';
+import { Alerta, FENOMENOS, NIVELES, NivelAlerta, ResumenDashboard, SENSORES, TipoFenomeno, TipoSensor } from '../../core/modelos/modelos';
 import { Api } from '../../core/servicios/api';
 import { Autenticacion } from '../../core/servicios/autenticacion';
 import { EstadoMonitoreo } from '../../core/servicios/estado-monitoreo';
@@ -17,7 +17,7 @@ import { Notificaciones } from '../../core/servicios/notificaciones';
  */
 @Component({
   selector: 'app-dashboard',
-  imports: [TarjetaSensor, PanelAlertas, GraficoEvolucion, MapaComunidad, DatePipe],
+  imports: [TarjetaSensor, PanelAlertas, GraficoEvolucion, MapaComunidad, DatePipe, DecimalPipe, KeyValuePipe],
   templateUrl: './dashboard.html',
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './dashboard.scss',
@@ -50,6 +50,36 @@ export class Dashboard {
 
     return marcas.length > 0 ? new Date(Math.max(...marcas)) : null;
   });
+
+  /** Del más grave al menos grave, para las barras de distribución. */
+  protected readonly nivelesOrdenados: NivelAlerta[] = ['Rojo', 'Naranja', 'Amarillo', 'Verde'];
+
+  protected etiquetaNivel(nivel: NivelAlerta): string {
+    return `${nivel} · ${NIVELES[nivel].etiqueta}`;
+  }
+
+  protected etiquetaFenomeno(fenomeno: string): string {
+    const meta = FENOMENOS[fenomeno as TipoFenomeno];
+    return meta ? `${meta.icono} ${meta.etiqueta}` : fenomeno;
+  }
+
+  protected etiquetaSensor(tipo: TipoSensor): string {
+    const meta = SENSORES[tipo];
+    return meta ? `${meta.icono} ${meta.etiqueta}` : tipo;
+  }
+
+  /** Ancho relativo de cada barra respecto a la mayor de su grupo. */
+  protected proporcion(valor: number, grupo: Record<string, number>): number {
+    const maximo = Math.max(...Object.values(grupo), 1);
+    return Math.max(2, Math.round((100 * valor) / maximo));
+  }
+
+  protected serviciosCaidos(resumen: ResumenDashboard): string[] {
+    const nombres = { community: 'comunidades', sensor: 'sensores', alert: 'alertas' } as const;
+    return (Object.keys(nombres) as (keyof typeof nombres)[])
+      .filter((clave) => resumen.disponibles && !resumen.disponibles[clave])
+      .map((clave) => nombres[clave]);
+  }
 
   protected alReconocer(alerta: Alerta): void {
     this.estado.marcarReconocida(alerta);

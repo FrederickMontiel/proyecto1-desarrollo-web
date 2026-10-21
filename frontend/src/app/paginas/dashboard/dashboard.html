@@ -149,3 +149,84 @@
     }
   </div>
 </section>
+
+<!-- Dashboard estadístico (sección 15): lo agrega el Report Service a partir de Community,
+     Sensor y Alert. Si alguno no respondió se avisa en lugar de mostrar ceros engañosos. -->
+@if (estado.resumen(); as resumen) {
+  <section class="bloque">
+    <div class="panel-titulo">
+      <h2>Estadísticas</h2>
+      <span class="texto-tenue">Últimos 30 días · {{ estado.comunidadActiva()?.nombre }}</span>
+    </div>
+
+    @if (serviciosCaidos(resumen).length > 0) {
+      <p class="aviso-servicios">
+        Sin datos de {{ serviciosCaidos(resumen).join(' y ') }}: el servicio no respondió. Se reintentará en la próxima actualización.
+      </p>
+    }
+
+    <div class="estadisticas">
+      <div class="tarjeta grupo">
+        <h3>Alertas por nivel <span class="texto-tenue">({{ resumen.alertasEnPeriodo }})</span></h3>
+        @for (nivel of nivelesOrdenados; track nivel) {
+          @if (resumen.alertasPeriodoPorNivel[nivel]; as cantidad) {
+            <div class="barra">
+              <span class="barra__etiqueta">{{ etiquetaNivel(nivel) }}</span>
+              <span class="barra__pista">
+                <span [class]="'barra__relleno nivel-' + nivel.toLowerCase()"
+                  [style.width.%]="proporcion(cantidad, resumen.alertasPeriodoPorNivel)"></span>
+              </span>
+              <span class="cifra">{{ cantidad }}</span>
+            </div>
+          }
+        } @empty {}
+        @if (resumen.alertasEnPeriodo === 0) {
+          <p class="vacio">Sin alertas en el periodo.</p>
+        }
+      </div>
+
+      <div class="tarjeta grupo">
+        <h3>Alertas por fenómeno</h3>
+        @for (item of resumen.alertasPeriodoPorFenomeno | keyvalue; track item.key) {
+          <div class="barra">
+            <span class="barra__etiqueta">{{ etiquetaFenomeno(item.key) }}</span>
+            <span class="barra__pista">
+              <span class="barra__relleno" [style.width.%]="proporcion(item.value, resumen.alertasPeriodoPorFenomeno)"></span>
+            </span>
+            <span class="cifra">{{ item.value }}</span>
+          </div>
+        } @empty {
+          <p class="vacio">Sin alertas en el periodo.</p>
+        }
+      </div>
+
+      <div class="tarjeta grupo grupo--ancho">
+        <h3>Estadísticas climáticas</h3>
+        @if (resumen.estadisticasClimaticas.length > 0) {
+          <div class="tabla-scroll">
+            <table class="tabla">
+              <thead>
+                <tr><th>Magnitud</th><th>Lecturas</th><th>Promedio</th><th>Mínimo</th><th>Máximo</th><th>Acumulado</th></tr>
+              </thead>
+              <tbody>
+                @for (e of resumen.estadisticasClimaticas; track e.tipo) {
+                  <tr>
+                    <td>{{ etiquetaSensor(e.tipo) }}</td>
+                    <td class="numero">{{ e.lecturas | number }}</td>
+                    <td class="numero">{{ e.promedio | number: '1.0-2' }} {{ e.unidadMedida }}</td>
+                    <td class="numero">{{ e.minimo | number: '1.0-2' }} {{ e.unidadMedida }}</td>
+                    <td class="numero">{{ e.maximo | number: '1.0-2' }} {{ e.unidadMedida }}</td>
+                    <!-- La lluvia se informa también acumulada: es la cifra que interesa a protección civil. -->
+                    <td class="numero">{{ e.tipo === 'Lluvia' ? (e.suma | number: '1.0-1') + ' ' + e.unidadMedida : '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="vacio">Sin lecturas en el periodo.</p>
+        }
+      </div>
+    </div>
+  </section>
+}

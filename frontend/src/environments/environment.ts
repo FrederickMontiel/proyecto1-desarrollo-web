@@ -6,5 +6,5 @@
 export const environment = {
   produccion: true,
   urlApi: '/api',
-  urlHub: '/hubs/monitoreo',
+  urlHub: '/hubs/monitoring',
 };

@@ -10,6 +10,8 @@ interface EntradaMenu {
   etiqueta: string;
   icono: string;
   soloAdministrador?: boolean;
+  /** Se muestra solo si la sesión tiene este permiso. */
+  permiso?: string;
 }
 
 /**
@@ -40,6 +42,7 @@ export class Shell implements OnInit {
     { ruta: '/sensores', etiqueta: 'Sensores', icono: '🛰️' },
     { ruta: '/lecturas', etiqueta: 'Lecturas', icono: '📈' },
     { ruta: '/reglas', etiqueta: 'Reglas de alerta', icono: '⚙️' },
+    { ruta: '/reportes', etiqueta: 'Reportes', icono: '📄', permiso: 'reportes:generar' },
     { ruta: '/usuarios', etiqueta: 'Usuarios', icono: '👥', soloAdministrador: true },
     { ruta: '/bitacora', etiqueta: 'Bitácora', icono: '📝', soloAdministrador: true },
   ];
@@ -52,7 +55,9 @@ export class Shell implements OnInit {
   }
 
   protected get entradasVisibles(): EntradaMenu[] {
-    return this.menu.filter((e) => !e.soloAdministrador || this.auth.puedeAdministrar());
+    return this.menu.filter(
+      (e) => (!e.soloAdministrador || this.auth.puedeAdministrar()) && (!e.permiso || this.auth.tiene(e.permiso)),
+    );
   }
 
   protected async cambiarComunidad(evento: Event): Promise<void> {

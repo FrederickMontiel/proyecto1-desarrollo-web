@@ -108,7 +108,7 @@ export class EstadoMonitoreo {
     });
 
     this.tiempoReal.estadoComunidad$.subscribe((estado) => {
-      this.sensores.set(estado.sensores);
+      this.sensores.set(estado.sensores.map((s) => ({ ...s, nivelActual: s.nivelActual ?? 'Verde' })));
       this.alertasActivas.set(estado.alertasActivas);
     });
 
@@ -194,7 +194,7 @@ export class EstadoMonitoreo {
               ...sensor,
               valorActual: lectura.valor,
               ultimaLectura: lectura.fechaHora,
-              nivelActual: lectura.nivel,
+              nivelActual: lectura.nivel ?? sensor.nivelActual,
             }
           : sensor,
       ),
@@ -214,10 +214,13 @@ export class EstadoMonitoreo {
     });
   }
 
-  private aplicarSensor(sensor: Sensor): void {
+  private aplicarSensor(recibido: Sensor): void {
+    // Los cambios de estado llegan sin umbrales (son de Alert Service): se conservan los ya
+    // cargados para no borrar la escalera de la tarjeta.
+    const sensor = (anterior?: Sensor): Sensor => ({ ...anterior, ...recibido, nivelActual: recibido.nivelActual ?? anterior?.nivelActual ?? 'Verde' }) as Sensor;
     this.sensores.update((lista) => {
-      const existe = lista.some((s) => s.id === sensor.id);
-      return existe ? lista.map((s) => (s.id === sensor.id ? sensor : s)) : [...lista, sensor];
+      const existe = lista.some((s) => s.id === recibido.id);
+      return existe ? lista.map((s) => (s.id === recibido.id ? sensor(s) : s)) : [...lista, sensor()];
     });
   }
 }

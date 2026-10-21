@@ -110,8 +110,13 @@ export class TiempoReal {
   }
 
   private registrarManejadores(conexion: HubConnection): void {
-    conexion.on('LecturaRecibida', (lectura: Lectura) => this.lectura$.next(lectura));
+    // Si Alert Service no pudo evaluar la lectura llega sin nivel: se pinta como normal
+    // hasta la siguiente evaluación, en lugar de romper la tarjeta.
+    conexion.on('LecturaRecibida', (lectura: Lectura) => this.lectura$.next({ ...lectura, nivel: lectura.nivel ?? 'Verde' }));
     conexion.on('AlertaGenerada', (alerta: Alerta) => this.alertaGenerada$.next(alerta));
+    // Atender una alerta la actualiza sin cambiar su nivel: entra por el mismo flujo que una
+    // generada, que ya distingue las novedades y no vuelve a sonar la sirena.
+    conexion.on('AlertaAtendida', (alerta: Alerta) => this.alertaGenerada$.next(alerta));
     conexion.on('AlertaCerrada', (alerta: Alerta) => this.alertaCerrada$.next(alerta));
     conexion.on('EstadoSensorCambiado', (sensor: Sensor) => this.sensorCambiado$.next(sensor));
     conexion.on('EstadoComunidad', (estado: EstadoComunidad) => this.estadoComunidad$.next(estado));

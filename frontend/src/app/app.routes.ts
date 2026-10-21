@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { guardaAdministrador, guardaAnonimo, guardaAutenticado } from './core/guardas/guardas';
+import { guardaAdministrador, guardaAnonimo, guardaAutenticado, guardaPermiso } from './core/guardas/guardas';
 
 /**
  * Todas las vistas se cargan de forma diferida: el paquete inicial se limita a la
@@ -52,6 +52,12 @@ export const routes: Routes = [
         path: 'reglas',
         title: 'Reglas de alerta — SWMATRC',
         loadComponent: () => import('./paginas/reglas/reglas').then((m) => m.Reglas),
+      },
+      {
+        path: 'reportes',
+        canActivate: [guardaPermiso('reportes:generar')],
+        title: 'Reportes — SWMATRC',
+        loadComponent: () => import('./paginas/reportes/reportes').then((m) => m.Reportes),
       },
       {
         path: 'usuarios',

@@ -1,0 +1,302 @@
+<div class="panel-titulo">
+  <div>
+    <h1>Reportes</h1>
+    <p class="texto-suave">
+      Elija un reporte, aplique filtros y genérelo en PDF. Se procesa en segundo plano y queda en el historial.
+      @if (!auth.puedeDescargarReportes()) {
+        La descarga está reservada a los administradores.
+      }
+    </p>
+  </div>
+</div>
+
+<!-- 1. Catálogo -->
+<section class="catalogo" aria-label="Tipo de reporte">
+  @for (t of tipos(); track t.type) {
+    <button
+      type="button"
+      class="tarjeta opcion"
+      [class.opcion--activa]="seleccionado()?.type === t.type"
+      [attr.aria-pressed]="seleccionado()?.type === t.type"
+      (click)="elegir(t)">
+      <span class="opcion__icono" aria-hidden="true">{{ iconos[t.type] }}</span>
+      <span class="opcion__nombre">{{ t.name }}</span>
+      <span class="opcion__requisito texto-tenue">{{ t.requirement }}</span>
+      <span class="opcion__descripcion texto-tenue">{{ t.description }}</span>
+    </button>
+  }
+</section>
+
+<!-- 2. Filtros del reporte elegido -->
+@if (seleccionado(); as tipo) {
+  <section class="tarjeta">
+    <h2 class="seccion-titulo">{{ iconos[tipo.type] }} {{ tipo.name }} — filtros</h2>
+
+    <div class="filtros filtros--reporte">
+      @if (admite('comunidadId')) {
+        <div class="campo">
+          <label for="r-comunidad">Comunidad</label>
+          <select id="r-comunidad" [(ngModel)]="comunidadId">
+            <option value="">Todas</option>
+            @for (c of comunidades(); track c.id) {
+              <option [ngValue]="c.id">{{ c.nombre }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (admite('sensorId')) {
+        <div class="campo">
+          <label for="r-sensor">Sensor</label>
+          <select id="r-sensor" [(ngModel)]="sensorId">
+            <option value="">Todos</option>
+            @for (s of sensoresFiltrados(); track s.id) {
+              <option [ngValue]="s.id">{{ s.codigo }} — {{ s.nombre }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (admite('tipoSensor')) {
+        <div class="campo">
+          <label for="r-tipo">Tipo de sensor</label>
+          <select id="r-tipo" [(ngModel)]="tipoSensor">
+            <option value="">Todos</option>
+            @for (t of tiposSensor; track t.valor) {
+              <option [value]="t.valor">{{ t.icono }} {{ t.etiqueta }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (admite('estadoSensor')) {
+        <div class="campo">
+          <label for="r-estado-sensor">Estado del sensor</label>
+          <select id="r-estado-sensor" [(ngModel)]="estadoSensor">
+            <option value="">Todos</option>
+            @for (e of estadosSensor; track e.valor) {
+              <option [value]="e.valor">{{ e.etiqueta }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (admite('fenomeno')) {
+        <div class="campo">
+          <label for="r-fenomeno">Fenómeno</label>
+          <select id="r-fenomeno" [(ngModel)]="fenomeno">
+            <option value="">Todos</option>
+            @for (f of fenomenos; track f.valor) {
+              <option [value]="f.valor">{{ f.icono }} {{ f.etiqueta }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (admite('nivel')) {
+        <div class="campo">
+          <label for="r-nivel">Nivel</label>
+          <select id="r-nivel" [(ngModel)]="nivel">
+            <option value="">Todos</option>
+            @for (n of niveles; track n) {
+              <option [value]="n">{{ n }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (admite('estado')) {
+        <div class="campo">
+          <label for="r-estado">Estado</label>
+          <select id="r-estado" [(ngModel)]="estado">
+            <option value="">Todos</option>
+            @for (e of estadosAlerta; track e) {
+              <option [value]="e">{{ e }}</option>
+            }
+          </select>
+        </div>
+      }
+
+      @if (admite('activa')) {
+        <div class="campo">
+          <label for="r-activa">Estado de la comunidad</label>
+          <select id="r-activa" [(ngModel)]="activa">
+            <option value="">Todas</option>
+            <option value="true">Activas</option>
+            <option value="false">Inactivas</option>
+          </select>
+        </div>
+      }
+
+      @if (admite('departamento')) {
+        <div class="campo">
+          <label for="r-departamento">Departamento</label>
+          <input id="r-departamento" type="text" [(ngModel)]="departamento" placeholder="Ej. Escuintla" />
+        </div>
+      }
+
+      @if (admite('desde')) {
+        <div class="campo">
+          <label for="r-desde">Desde</label>
+          <input id="r-desde" type="datetime-local" [(ngModel)]="desde" />
+        </div>
+      }
+
+      @if (admite('hasta')) {
+        <div class="campo">
+          <label for="r-hasta">Hasta</label>
+          <input id="r-hasta" type="datetime-local" [(ngModel)]="hasta" />
+        </div>
+      }
+
+      @if (tipo.filters.length === 0) {
+        <p class="texto-tenue">Este reporte no admite filtros.</p>
+      }
+
+      <div class="filtros__acciones">
+        <button class="boton boton--primario" type="button" [disabled]="generando()" (click)="generar()">
+          {{ generando() ? 'Enviando…' : 'Generar PDF' }}
+        </button>
+        <button class="boton" type="button" (click)="limpiarFiltros()">Limpiar filtros</button>
+      </div>
+    </div>
+  </section>
+}
+
+<!-- 3. Generados en esta sesión -->
+@if (enCurso().length > 0) {
+  <section class="tarjeta">
+    <h2 class="seccion-titulo">Generados en esta sesión</h2>
+    <ul class="en-curso">
+      @for (r of enCurso(); track r.reportId) {
+        <li class="en-curso__fila">
+          <span class="mono">{{ r.reportId }}</span>
+          <span>{{ r.typeName }}</span>
+          <span class="insignia" [class]="claseEstado[r.status]">
+            @if (r.status === 'PENDING' || r.status === 'PROCESSING') {
+              <span class="pulso" aria-hidden="true">●</span>
+            }
+            {{ r.statusLabel }}
+          </span>
+          <span class="texto-tenue">
+            @if (r.status === 'COMPLETED') {
+              {{ r.rows | number }} registros · {{ tamano(r.fileSize) }} · {{ r.durationMs | number }} ms
+            } @else if (r.status === 'FAILED') {
+              {{ r.error }}
+            } @else {
+              Obteniendo datos y generando el PDF…
+            }
+          </span>
+          @if (r.status === 'COMPLETED' && auth.puedeDescargarReportes()) {
+            <button class="boton boton--sm boton--primario" type="button"
+              [disabled]="descargando() === r.reportId" (click)="descargar(r)">
+              {{ descargando() === r.reportId ? 'Descargando…' : '⬇ PDF' }}
+            </button>
+          }
+        </li>
+        @for (aviso of r.warnings ?? []; track $index) {
+          <li class="aviso">{{ aviso }}</li>
+        }
+      }
+    </ul>
+  </section>
+}
+
+<!-- 4. Historial (RF-REP-09) -->
+<section class="tarjeta">
+  <div class="historial__encabezado">
+    <h2 class="seccion-titulo">Historial de reportes</h2>
+    <span class="texto-tenue">
+      {{ auth.puedeDescargarReportes() ? 'Reportes de todos los usuarios.' : 'Sus reportes.' }}
+    </span>
+  </div>
+
+  <div class="filtros">
+    <div class="campo">
+      <label for="h-tipo">Tipo</label>
+      <select id="h-tipo" [(ngModel)]="tipoHistorial">
+        <option value="">Todos</option>
+        @for (t of tipos(); track t.type) {
+          <option [value]="t.type">{{ t.name }}</option>
+        }
+      </select>
+    </div>
+    <div class="campo">
+      <label for="h-estado">Estado</label>
+      <select id="h-estado" [(ngModel)]="estadoHistorial">
+        <option value="">Todos</option>
+        @for (e of estadosReporte; track e.valor) {
+          <option [value]="e.valor">{{ e.etiqueta }}</option>
+        }
+      </select>
+    </div>
+    <div class="filtros__acciones">
+      <button class="boton boton--primario" type="button" (click)="filtrarHistorial()">Filtrar</button>
+      <button class="boton" type="button" (click)="cargarHistorial()">Actualizar</button>
+    </div>
+  </div>
+
+  @if (cargandoHistorial() && !historial()) {
+    <p class="vacio">Cargando historial…</p>
+  } @else if (!historial() || historial()!.elementos.length === 0) {
+    <p class="vacio">Todavía no se han generado reportes.</p>
+  } @else {
+    <div class="tabla-scroll">
+      <table class="tabla">
+        <thead>
+          <tr>
+            <th>Reporte</th>
+            <th>Tipo</th>
+            <th>Generado</th>
+            <th>Usuario</th>
+            <th>Parámetros</th>
+            <th>Estado</th>
+            <th>Archivo</th>
+            <th>Última descarga</th>
+            @if (auth.puedeDescargarReportes()) {
+              <th></th>
+            }
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of historial()!.elementos; track r.reportId) {
+            <tr>
+              <td class="mono">{{ r.reportId }}</td>
+              <td>{{ iconos[r.type] }} {{ r.typeName }}</td>
+              <td class="numero">{{ r.generatedAt | date: 'dd/MM/yy HH:mm' }}</td>
+              <td>{{ r.generatedBy.name || r.generatedBy.email }}</td>
+              <td class="texto-tenue parametros">{{ describirFiltros(r) }}</td>
+              <td>
+                <span class="insignia" [class]="claseEstado[r.status]" [title]="r.error ?? ''">{{ r.statusLabel }}</span>
+              </td>
+              <td class="texto-tenue">
+                @if (r.status === 'COMPLETED') {
+                  {{ r.rows | number }} reg. · {{ tamano(r.fileSize) }}
+                } @else {
+                  —
+                }
+              </td>
+              <td class="numero texto-tenue">
+                @if (r.lastDownloadAt) {
+                  {{ r.lastDownloadAt | date: 'dd/MM/yy HH:mm' }} ({{ r.downloadCount }})
+                } @else {
+                  —
+                }
+              </td>
+              @if (auth.puedeDescargarReportes()) {
+                <td>
+                  @if (r.status === 'COMPLETED') {
+                    <button class="boton boton--sm" type="button"
+                      [disabled]="descargando() === r.reportId" (click)="descargar(r)">⬇ PDF</button>
+                  }
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <app-paginador [pagina]="historial()!" unidad="reportes" (cambiar)="irA($event)" />
+  }
+</section>
