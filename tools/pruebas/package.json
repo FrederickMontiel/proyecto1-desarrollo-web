@@ -1,0 +1,9 @@
+{
+  "name": "swmatrc-pruebas-e2e",
+  "private": true,
+  "description": "Cliente SignalR para la prueba de tiempo real de tools/pruebas/e2e.py",
+  "type": "module",
+  "dependencies": {
+    "@microsoft/signalr": "10.0.0"
+  }
+}
