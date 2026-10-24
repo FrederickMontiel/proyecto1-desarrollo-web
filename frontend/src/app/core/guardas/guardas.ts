@@ -20,6 +20,16 @@ export const guardaAdministrador: CanActivateFn = () => {
   return auth.puedeAdministrar() ? true : router.createUrlTree(['/dashboard']);
 };
 
+/** Reserva una ruta a quien tenga el permiso indicado (lo emite el Auth Service en el token). */
+export function guardaPermiso(permiso: string): CanActivateFn {
+  return () => {
+    const auth = inject(Autenticacion);
+    const router = inject(Router);
+
+    return auth.tiene(permiso) ? true : router.createUrlTree(['/dashboard']);
+  };
+}
+
 /** Evita que una sesión activa vuelva a la pantalla de acceso. */
 export const guardaAnonimo: CanActivateFn = () => {
   const auth = inject(Autenticacion);

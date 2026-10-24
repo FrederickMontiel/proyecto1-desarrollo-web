@@ -28,7 +28,7 @@ export const interceptorErrores: HttpInterceptorFn = (peticion, siguiente) => {
   return siguiente(peticion).pipe(
     catchError((error: HttpErrorResponse) => {
       // El login gestiona su propio error dentro del formulario.
-      const esLogin = peticion.url.includes('/cuenta/login');
+      const esLogin = peticion.url.includes('/auth/login');
 
       if (error.status === 401 && !esLogin) {
         // Token vencido o revocado: se cierra la sesión en lugar de dejar la aplicación

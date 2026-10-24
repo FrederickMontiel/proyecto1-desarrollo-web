@@ -1,0 +1,15 @@
+<Project>
+
+  <!--
+    Propiedades comunes a todos los proyectos .NET de services/ (Community, Sensor y la
+    librería compartida). MSBuild lo aplica solo a los .csproj que están debajo de esta
+    carpeta; los servicios en Node, Java y Python no lo ven.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+</Project>

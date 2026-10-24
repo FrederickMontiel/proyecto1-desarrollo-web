@@ -1,0 +1,104 @@
+/* Catálogo de reportes: una tarjeta seleccionable por tipo. */
+.catalogo {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.opcion {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    'icono nombre'
+    'icono requisito'
+    'descripcion descripcion';
+  gap: 0.15rem 0.6rem;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  border: 2px solid transparent;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.opcion:hover {
+  transform: translateY(-1px);
+}
+
+.opcion--activa {
+  border-color: var(--primario);
+}
+
+.opcion__icono {
+  grid-area: icono;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.opcion__nombre {
+  grid-area: nombre;
+  font-weight: 600;
+}
+
+.opcion__requisito {
+  grid-area: requisito;
+}
+
+.opcion__descripcion {
+  grid-area: descripcion;
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+}
+
+.seccion-titulo {
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.filtros--reporte {
+  margin-bottom: 0;
+}
+
+/* Reportes generados en esta sesión, con su estado en vivo. */
+.en-curso {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.en-curso__fila {
+  display: grid;
+  grid-template-columns: 10rem minmax(9rem, 14rem) auto 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--borde);
+}
+
+.aviso {
+  font-size: 0.8rem;
+  color: var(--texto-suave);
+  border-left: 3px solid var(--amarillo);
+  padding-left: 0.6rem;
+}
+
+.historial__encabezado {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.parametros {
+  max-width: 22rem;
+}
+
+@media (max-width: 760px) {
+  .en-curso__fila {
+    grid-template-columns: 1fr auto;
+  }
+}

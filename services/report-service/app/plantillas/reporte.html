@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>{{ tipo.nombre }} — {{ meta.reportId }}</title>
+  <style>
+    /* ------------------------------------------------------------------------------
+       Página. El encabezado y el pie se repiten en cada hoja (RNF-REP-03): WeasyPrint
+       saca el bloque #encabezado del flujo con running() y lo coloca en @top-center.
+       ------------------------------------------------------------------------------ */
+    @page {
+      size: A4 {{ 'landscape' if tipo.horizontal else 'portrait' }};
+      margin: 30mm 13mm 18mm 13mm;
+      @top-center { content: element(encabezado); width: 100%; }
+      @bottom-left {
+        content: "SWMATRC · {{ meta.reportId }} · Generado el {{ generado }} por {{ meta.usuario }}";
+        font-size: 7.5pt; color: #5b6472;
+      }
+      @bottom-right {
+        content: "Página " counter(page) " de " counter(pages);
+        font-size: 7.5pt; color: #5b6472;
+      }
+    }
+
+    :root {
+      --tinta: #1d2733;
+      --suave: #5b6472;
+      --borde: #d5dae1;
+      --fondo: #f3f5f8;
+      --marca: #0f5b78;
+      --verde: #2e7d32;
+      --amarillo: #c99700;
+      --naranja: #e2650b;
+      --rojo: #c62828;
+    }
+
+    html { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; color: var(--tinta); font-size: 8.6pt; }
+    body { margin: 0; }
+
+    #encabezado { position: running(encabezado); display: flex; align-items: center; gap: 10px;
+                  border-bottom: 2px solid var(--marca); padding-bottom: 5px; }
+    #encabezado svg { width: 34px; height: 34px; flex: none; }
+    #encabezado .sistema { font-size: 7.5pt; color: var(--suave); text-transform: uppercase; letter-spacing: .04em; }
+    #encabezado .titulo { font-size: 12pt; font-weight: bold; color: var(--marca); }
+    #encabezado .id { margin-left: auto; text-align: right; font-size: 7.5pt; color: var(--suave); }
+
+    h1 { font-size: 16pt; margin: 0 0 2px; color: var(--marca); }
+    .descripcion { color: var(--suave); margin: 0 0 8px; }
+
+    .ficha { width: 100%; border-collapse: collapse; margin-bottom: 10px; background: var(--fondo); }
+    .ficha td { padding: 4px 7px; border: 1px solid var(--borde); vertical-align: top; }
+    .ficha td.etiqueta { width: 18%; color: var(--suave); font-weight: bold; }
+
+    .aviso { border-left: 4px solid var(--amarillo); background: #fff8e1; padding: 6px 9px; margin: 0 0 10px; }
+
+    h2 { font-size: 10.5pt; color: var(--marca); margin: 14px 0 5px; border-bottom: 1px solid var(--borde);
+         padding-bottom: 2px; page-break-after: avoid; }
+
+    .indicadores { display: flex; gap: 8px; margin-bottom: 4px; page-break-inside: avoid; }
+    .indicador { flex: 1; border: 1px solid var(--borde); border-radius: 4px; padding: 7px 9px; }
+    .indicador .valor { font-size: 14pt; font-weight: bold; }
+    .indicador .nombre { color: var(--suave); font-size: 7.5pt; text-transform: uppercase; }
+
+    .barras { width: 100%; border-collapse: collapse; page-break-inside: avoid; }
+    .barras td { padding: 2px 4px; }
+    .barras td.nombre { width: 26%; }
+    .barras td.cantidad { width: 8%; text-align: right; font-weight: bold; }
+    .barra { height: 9px; background: var(--marca); border-radius: 2px; }
+    .barra.Verde { background: var(--verde); } .barra.Amarillo { background: var(--amarillo); }
+    .barra.Naranja { background: var(--naranja); } .barra.Rojo { background: var(--rojo); }
+
+    table.datos { width: 100%; border-collapse: collapse; table-layout: auto; }
+    /* La fila de títulos se repite en cada página de una tabla larga. */
+    table.datos thead { display: table-header-group; }
+    table.datos th { background: var(--marca); color: #fff; text-align: left; padding: 4px 5px; font-size: 7.8pt; }
+    table.datos td { padding: 3px 5px; border-bottom: 1px solid var(--borde); vertical-align: top; }
+    table.datos tr { page-break-inside: avoid; }
+    table.datos tbody tr:nth-child(even) td { background: var(--fondo); }
+    .vacio { color: var(--suave); font-style: italic; }
+
+    .nivel { font-weight: bold; }
+    .nivel.Verde { color: var(--verde); } .nivel.Amarillo { color: var(--amarillo); }
+    .nivel.Naranja { color: var(--naranja); } .nivel.Rojo { color: var(--rojo); }
+  </style>
+</head>
+<body>
+
+  <div id="encabezado">
+    {# Logo: escudo con una gota y una onda, en SVG para que salga nítido a cualquier escala. #}
+    <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-label="Logo SWMATRC">
+      <path d="M32 3 L57 12 V30 C57 45 46 56 32 61 C18 56 7 45 7 30 V12 Z" fill="#0f5b78"/>
+      <path d="M32 14 C38 23 43 29 43 35 A11 11 0 0 1 21 35 C21 29 26 23 32 14 Z" fill="#ffffff"/>
+      <path d="M14 46 C20 42 25 50 32 46 C39 42 44 50 50 46" stroke="#7fd3f0" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>
+    <div>
+      <div class="sistema">Sistema Web de Monitoreo y Alerta Temprana para Riesgos Climáticos</div>
+      <div class="titulo">{{ tipo.nombre }}</div>
+    </div>
+    <div class="id">{{ meta.reportId }}<br>{{ tipo.requisito }}</div>
+  </div>
+
+  <h1>{{ tipo.nombre }}</h1>
+  <p class="descripcion">{{ tipo.descripcion }}</p>
+
+  <table class="ficha">
+    <tr><td class="etiqueta">Reporte</td><td>{{ meta.reportId }}</td>
+        <td class="etiqueta">Generado</td><td>{{ generado }} (hora de Guatemala)</td></tr>
+    <tr><td class="etiqueta">Usuario</td><td>{{ meta.usuario }}</td>
+        <td class="etiqueta">Registros</td><td>{{ '{:,}'.format(documento.filas) }}</td></tr>
+    <tr><td class="etiqueta">Filtros</td><td colspan="3">
+      {%- if filtros %}{% for nombre, valor in filtros %}{{ nombre }}: <b>{{ valor }}</b>{% if not loop.last %} · {% endif %}{% endfor %}
+      {%- else %}Sin filtros: incluye todos los registros.{% endif -%}
+    </td></tr>
+  </table>
+
+  {% for aviso in documento.avisos %}<div class="aviso">{{ aviso }}</div>{% endfor %}
+
+  {% for s in documento.secciones %}
+    <h2>{{ s.titulo }}</h2>
+
+    {% if s.tipo == 'indicadores' %}
+      <div class="indicadores">
+        {% for nombre, valor in s.elementos %}
+          <div class="indicador"><div class="valor">{{ valor }}</div><div class="nombre">{{ nombre }}</div></div>
+        {% endfor %}
+      </div>
+
+    {% elif s.tipo == 'barras' %}
+      {% if s.elementos %}
+        <table class="barras">
+          {% for nombre, cantidad, porcentaje, clave in s.elementos %}
+            <tr>
+              <td class="nombre">{{ nombre }}</td>
+              <td><div class="barra {{ clave }}" style="width: {{ [porcentaje, 1] | max }}%"></div></td>
+              <td class="cantidad">{{ '{:,}'.format(cantidad) }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      {% else %}
+        <p class="vacio">Sin datos en el periodo.</p>
+      {% endif %}
+
+    {% elif s.tipo == 'tabla' %}
+      {% if s.filas %}
+        <table class="datos">
+          {% if s.anchos %}<colgroup>{% for a in s.anchos %}<col style="width: {{ a }}">{% endfor %}</colgroup>{% endif %}
+          <thead><tr>{% for c in s.columnas %}<th>{{ c }}</th>{% endfor %}</tr></thead>
+          <tbody>
+            {% for fila in s.filas %}
+              <tr>
+                {% for celda in fila %}
+                  {% if loop.index0 == s.nivel_columna %}<td class="nivel {{ celda }}">{{ celda }}</td>
+                  {% else %}<td>{{ celda }}</td>{% endif %}
+                {% endfor %}
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p class="vacio">{{ s.nota or 'No hay registros que cumplan los filtros.' }}</p>
+      {% endif %}
+    {% endif %}
+  {% endfor %}
+
+</body>
+</html>

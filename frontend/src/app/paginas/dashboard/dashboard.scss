@@ -139,3 +139,57 @@
   .situacion__detalle { align-items: flex-start; }
   .situacion__fenomenos { justify-content: flex-start; }
 }
+
+/* Dashboard estadístico (sección 15). */
+.estadisticas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.85rem;
+}
+
+.grupo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.grupo--ancho {
+  grid-column: 1 / -1;
+}
+
+.barra {
+  display: grid;
+  grid-template-columns: minmax(120px, 42%) 1fr 2.5rem;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.barra__pista {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--fondo-alt);
+  overflow: hidden;
+}
+
+.barra__relleno {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--primario);
+}
+
+.barra__relleno.nivel-verde { background: var(--verde); }
+.barra__relleno.nivel-amarillo { background: var(--amarillo); }
+.barra__relleno.nivel-naranja { background: var(--naranja); }
+.barra__relleno.nivel-rojo { background: var(--rojo); }
+
+.barra .cifra { text-align: right; }
+
+.aviso-servicios {
+  border-left: 3px solid var(--amarillo);
+  padding: 0.45rem 0.75rem;
+  margin-bottom: 0.75rem;
+  background: var(--amarillo-tenue);
+  font-size: 0.85rem;
+}

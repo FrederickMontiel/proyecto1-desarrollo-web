@@ -135,7 +135,12 @@
                 <strong>{{ lectura.valor | number: '1.0-3' }}</strong> {{ lectura.unidadMedida }}
               </td>
               <td>
-                <span class="insignia" [class]="'nivel-' + lectura.nivel.toLowerCase()">{{ lectura.nivel }}</span>
+                @if (lectura.nivel) {
+                  <span class="insignia" [class]="'nivel-' + lectura.nivel.toLowerCase()">{{ lectura.nivel }}</span>
+                } @else {
+                  <!-- Alert Service no pudo evaluarla cuando se registró. -->
+                  <span class="insignia" title="Alert Service no estaba disponible">Sin evaluar</span>
+                }
               </td>
               <td class="texto-tenue">{{ lectura.estadoSensor }}</td>
               @if (auth.puedeAdministrar()) {

@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/community-service/" />
+  <Folder Name="/community-service/src/">
+    <Project Path="community-service/src/SWMatrc.Community/SWMatrc.Community.csproj" />
+  </Folder>
+  <Folder Name="/community-service/tests/">
+    <Project Path="community-service/tests/SWMatrc.Community.Tests/SWMatrc.Community.Tests.csproj" />
+  </Folder>
+  <Folder Name="/dotnet-comun/">
+    <Project Path="dotnet-comun/SWMatrc.Comun/SWMatrc.Comun.csproj" />
+  </Folder>
+  <Folder Name="/sensor-service/" />
+  <Folder Name="/sensor-service/src/">
+    <Project Path="sensor-service/src/SWMatrc.Sensores/SWMatrc.Sensores.csproj" />
+  </Folder>
+  <Folder Name="/sensor-service/tests/">
+    <Project Path="sensor-service/tests/SWMatrc.Sensores.Tests/SWMatrc.Sensores.Tests.csproj" />
+  </Folder>
+</Solution>

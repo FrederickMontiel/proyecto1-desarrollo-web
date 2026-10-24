@@ -1,22 +1,31 @@
 # --------------------------------------------------------------------------------------
 # Superposición para desarrollo local. Publica hacia el host puertos que en producción
-# permanecen dentro de la red interna, para poder inspeccionar la base con SSMS o azure
-# data studio y llamar a la API con curl o Postman.
+# permanecen dentro de la red interna, para inspeccionar las bases (DBeaver, SSMS,
+# Compass) y llamar a cada servicio directo con curl o Postman, sin pasar por el gateway.
 #
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 #
+# Los puertos del host no son los estándar (15432, 11433, 37017) para no chocar con un
+# PostgreSQL, SQL Server o MongoDB instalados en la máquina de desarrollo.
+#
 # No se llama docker-compose.override.yml a propósito: Compose aplicaría ese nombre solo,
-# y bastaría un despliegue descuidado en la VPS para dejar SQL Server expuesto a Internet.
+# y bastaría un despliegue descuidado en la VPS para dejar las bases expuestas a Internet.
 # --------------------------------------------------------------------------------------
 
 services:
 
-  db:
+  postgres:
     ports:
-      - "1433:1433"
+      - "127.0.0.1:15432:5432"
 
-  api:
+  sqlserver:
     ports:
-      - "5080:8080"
+      - "127.0.0.1:11433:1433"
+
+  mongo:
+    ports:
+      - "127.0.0.1:37017:27017"
+
+  gateway:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
