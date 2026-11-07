@@ -1,0 +1,44 @@
+# --------------------------------------------------------------------------------------
+# Entorno local: K3s dentro de WSL (Ubuntu). Se entra por http://localhost (Traefik escucha
+# en el 80 de WSL y Windows lo reenvía). Las imágenes se construyen en Windows y se importan
+# a K3s con scripts/construir-imagenes.sh + scripts/importar-imagenes-k3s.sh.
+#
+#   kubectl apply -k infrastructure/k8s/overlays/local
+#
+# URL de callback que se registra en Google/GitHub para este entorno:
+#   http://localhost/api/auth/callback/google   ·   http://localhost/api/auth/callback/github
+# --------------------------------------------------------------------------------------
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - { name: swmatrc/auth-service, newTag: fase4 }
+  - { name: swmatrc/community-service, newTag: fase4 }
+  - { name: swmatrc/sensor-service, newTag: fase4 }
+  - { name: swmatrc/alert-service, newTag: fase4 }
+  - { name: swmatrc/report-service, newTag: fase4 }
+  - { name: swmatrc/audit-service, newTag: fase4 }
+  - { name: swmatrc/api-gateway, newTag: fase4 }
+  - { name: swmatrc/web, newTag: fase4 }
+
+patches:
+  - target: { kind: ConfigMap, name: swmatrc-config }
+    patch: |-
+      - op: replace
+        path: /data/ENTORNO
+        value: local
+      - op: replace
+        path: /data/URL_PUBLICA
+        value: http://localhost
+      - op: replace
+        path: /data/CORS_ORIGEN
+        value: http://localhost
+  # Sin host: el Ingress local responde igual por localhost, por la IP de WSL o por el túnel
+  # SSH de la Raspberry (http://localhost:18080 en la Raspberry).
+  - target: { kind: Ingress, name: swmatrc }
+    patch: |-
+      - op: remove
+        path: /spec/rules/0/host

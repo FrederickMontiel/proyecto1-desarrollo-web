@@ -1,0 +1,54 @@
+# --------------------------------------------------------------------------------------
+# Producción: K3s en la VPS, dominio propio con HTTPS.
+#
+# Antes de aplicar:
+#   1. Reemplazar sistema-climatico.example por el dominio real (lo hace scripts/desplegar.sh
+#      con DOMINIO=...) y apuntar el registro DNS A del dominio a la IP de la VPS.
+#   2. Instalar cert-manager (scripts/instalar-k3s.sh lo hace) y poner un correo real en
+#      emisor-letsencrypt.yaml.
+#   3. Registrar en Google y GitHub las URL de callback:
+#        https://<dominio>/api/auth/callback/google
+#        https://<dominio>/api/auth/callback/github
+#
+#   kubectl apply -k infrastructure/k8s/overlays/produccion
+# --------------------------------------------------------------------------------------
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - emisor-letsencrypt.yaml
+  - redireccion-https.yaml
+
+# Imágenes publicadas por GitHub Actions en GitHub Container Registry (.github/workflows).
+images:
+  - { name: swmatrc/auth-service, newName: ghcr.io/frederickmontiel/swmatrc-auth-service, newTag: latest }
+  - { name: swmatrc/community-service, newName: ghcr.io/frederickmontiel/swmatrc-community-service, newTag: latest }
+  - { name: swmatrc/sensor-service, newName: ghcr.io/frederickmontiel/swmatrc-sensor-service, newTag: latest }
+  - { name: swmatrc/alert-service, newName: ghcr.io/frederickmontiel/swmatrc-alert-service, newTag: latest }
+  - { name: swmatrc/report-service, newName: ghcr.io/frederickmontiel/swmatrc-report-service, newTag: latest }
+  - { name: swmatrc/audit-service, newName: ghcr.io/frederickmontiel/swmatrc-audit-service, newTag: latest }
+  - { name: swmatrc/api-gateway, newName: ghcr.io/frederickmontiel/swmatrc-api-gateway, newTag: latest }
+  - { name: swmatrc/web, newName: ghcr.io/frederickmontiel/swmatrc-web, newTag: latest }
+
+patches:
+  # Con la etiqueta "latest" hay que pedir la imagen en cada arranque para recibir la nueva.
+  - target: { kind: Deployment }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Always
+  - target: { kind: Ingress, name: swmatrc }
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          # cert-manager pide y renueva el certificado de Let's Encrypt.
+          cert-manager.io/cluster-issuer: letsencrypt
+          # Todo lo que llegue por HTTP se redirige a HTTPS.
+          traefik.ingress.kubernetes.io/router.middlewares: swmatrc-redireccion-https@kubernetescrd
+      - op: add
+        path: /spec/tls
+        value:
+          - hosts: [sistema-climatico.example]
+            secretName: swmatrc-tls

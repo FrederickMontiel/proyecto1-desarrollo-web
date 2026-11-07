@@ -1,0 +1,16 @@
+# Emisor de certificados de Let's Encrypt para cert-manager (reto HTTP-01 resuelto por Traefik).
+# Cambiar el correo: Let's Encrypt avisa ahí si un certificado está por vencer sin renovarse.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@sistema-climatico.example
+    privateKeySecretRef:
+      name: letsencrypt-cuenta
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik

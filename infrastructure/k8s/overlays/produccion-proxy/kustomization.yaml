@@ -1,0 +1,39 @@
+# --------------------------------------------------------------------------------------
+# Producción en un SERVIDOR COMPARTIDO: ya hay un proxy (nginx, Caddy…) en 80/443 atendiendo
+# otros sitios y no se puede tocar. Ese proxy:
+#   - termina el HTTPS del dominio del sistema (certificado de Let's Encrypt con certbot), y
+#   - reenvía todo el dominio a Traefik de K3s en 127.0.0.1:<TRAEFIK_PUERTO_HTTP>
+#     (ver infrastructure/nginx/nginx-k3s.conf.example).
+# El Ingress de Kubernetes sigue siendo el punto de entrada al clúster: enruta /api y /hubs
+# al gateway y el resto a la web. Por eso aquí no hay TLS ni cert-manager.
+#
+#   DOMINIO=… IMAGENES_LOCALES=1 bash infrastructure/k8s/scripts/desplegar.sh produccion-proxy
+# --------------------------------------------------------------------------------------
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+images:
+  - { name: swmatrc/auth-service, newName: ghcr.io/frederickmontiel/swmatrc-auth-service, newTag: latest }
+  - { name: swmatrc/community-service, newName: ghcr.io/frederickmontiel/swmatrc-community-service, newTag: latest }
+  - { name: swmatrc/sensor-service, newName: ghcr.io/frederickmontiel/swmatrc-sensor-service, newTag: latest }
+  - { name: swmatrc/alert-service, newName: ghcr.io/frederickmontiel/swmatrc-alert-service, newTag: latest }
+  - { name: swmatrc/report-service, newName: ghcr.io/frederickmontiel/swmatrc-report-service, newTag: latest }
+  - { name: swmatrc/audit-service, newName: ghcr.io/frederickmontiel/swmatrc-audit-service, newTag: latest }
+  - { name: swmatrc/api-gateway, newName: ghcr.io/frederickmontiel/swmatrc-api-gateway, newTag: latest }
+  - { name: swmatrc/web, newName: ghcr.io/frederickmontiel/swmatrc-web, newTag: latest }
+
+patches:
+  - target: { kind: Deployment }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Always
+  # nginx del servidor → Traefik → gateway: la IP real del cliente está dos saltos atrás.
+  - target: { kind: Deployment, name: api-gateway }
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: { name: Proxy__Saltos, value: "2" }

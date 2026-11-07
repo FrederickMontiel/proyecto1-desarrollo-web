@@ -1,0 +1,87 @@
+# --------------------------------------------------------------------------------------
+# MongoDB 8: report_db (metadata + PDF en GridFS) y audit_db, con un usuario por servicio.
+# database/mongodb/init.js llega como ConfigMap y corre solo con el volumen vacío.
+# --------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  labels:
+    app.kubernetes.io/name: mongo
+    app.kubernetes.io/component: base-de-datos
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: mongo
+  ports:
+    - name: mongo
+      port: 27017
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+  labels:
+    app.kubernetes.io/name: mongo
+    app.kubernetes.io/component: base-de-datos
+spec:
+  serviceName: mongo
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mongo
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mongo
+        app.kubernetes.io/component: base-de-datos
+    spec:
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: mongo
+          image: mongo:8.0
+          ports:
+            - name: mongo
+              containerPort: 27017
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              value: root
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: MONGO_ROOT_PASSWORD } }
+            - name: REPORT_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: REPORT_DB_PASSWORD } }
+            - name: AUDIT_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: AUDIT_DB_PASSWORD } }
+          volumeMounts:
+            - name: datos
+              mountPath: /data/db
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+              readOnly: true
+          readinessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+            periodSeconds: 10
+            timeoutSeconds: 8
+          livenessProbe:
+            exec:
+              command: ["mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 8
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: init
+          configMap:
+            name: db-init-mongodb
+  volumeClaimTemplates:
+    - metadata:
+        name: datos
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

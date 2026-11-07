@@ -1,0 +1,40 @@
+# --------------------------------------------------------------------------------------
+# SWMATRC en Kubernetes / K3s — base común a todos los entornos.
+#
+# No se aplica sola: los overlays (local, produccion) la completan con el dominio, las
+# imágenes y el TLS. Los Secrets NO están aquí: los crea scripts/crear-secretos.sh a partir
+# de .env y secrets/ (RNF-OAUTH-01/02: ningún secreto en el repositorio).
+# --------------------------------------------------------------------------------------
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: swmatrc
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: swmatrc
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  # Persistencia: una StatefulSet con su PersistentVolumeClaim por motor.
+  - bases-de-datos/postgres.yaml
+  - bases-de-datos/sqlserver.yaml
+  - bases-de-datos/mongodb.yaml
+  - bases-de-datos/redis.yaml
+  # Microservicios: Deployment + Service (ClusterIP) cada uno.
+  - servicios/auth-service.yaml
+  - servicios/community-service.yaml
+  - servicios/sensor-service.yaml
+  - servicios/alert-service.yaml
+  - servicios/report-service.yaml
+  - servicios/audit-service.yaml
+  - servicios/api-gateway.yaml
+  - servicios/web.yaml
+  # Escalabilidad horizontal y disponibilidad.
+  - escalado.yaml
+  # Único punto de entrada externo.
+  - ingress.yaml
+  # Quién puede hablar con quién dentro del clúster.
+  - politicas-red.yaml

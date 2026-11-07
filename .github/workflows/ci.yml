@@ -14,7 +14,7 @@ concurrency:
 jobs:
 
   dotnet:
-    name: .NET · compilar y probar
+    name: .NET · gateway, community y sensor
     runs-on: ubuntu-latest
 
     steps:
@@ -37,33 +37,28 @@ jobs:
         working-directory: services
         run: dotnet test SWMatrc.Servicios.slnx --configuration Release --no-build --verbosity normal
 
-  gateway:
-    name: Gateway · compilar
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Instalar .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Compilar
-        working-directory: gateway/SWMatrc.Gateway
-        run: dotnet build --configuration Release --warnaserror
-
   auth:
-    name: Auth · compilar y probar
+    name: Auth · compilar, analizar y probar
     runs-on: ubuntu-latest
+
+    # Base desechable para la prueba de integración del flujo OAuth (test/oauth.e2e-spec.ts).
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_PASSWORD: prueba
+          POSTGRES_DB: auth_prueba
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Instalar Node 22
+      - name: Instalar Node 24
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
           cache-dependency-path: services/auth-service/package-lock.json
 
@@ -75,9 +70,23 @@ jobs:
         working-directory: services/auth-service
         run: npm run build
 
-      - name: Ejecutar pruebas
+      - name: Analizar
+        working-directory: services/auth-service
+        run: npm run lint
+
+      - name: Ejecutar pruebas unitarias (JWT, proveedores OAuth/OIDC)
         working-directory: services/auth-service
         run: npm test
+
+      - name: Ejecutar prueba de integración (flujo OAuth contra PostgreSQL)
+        working-directory: services/auth-service
+        env:
+          E2E_DB_HOST: 127.0.0.1
+          E2E_DB_PORT: 5432
+          E2E_DB_NOMBRE: auth_prueba
+          E2E_DB_USUARIO: postgres
+          E2E_DB_PASSWORD: prueba
+        run: npm run test:e2e
 
   alert:
     name: Alert · compilar y probar
@@ -96,6 +105,39 @@ jobs:
       - name: Compilar y probar
         working-directory: services/alert-service
         run: mvn -B package
+
+  audit:
+    name: Audit · probar
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: services/audit-service/requirements-dev.txt
+
+      - name: Instalar dependencias
+        working-directory: services/audit-service
+        run: pip install -r requirements-dev.txt
+
+      - name: Ejecutar pruebas
+        working-directory: services/audit-service
+        run: python -m pytest -q
+
+  report:
+    name: Report · probar (con PDF real)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # La etapa "pruebas" del Dockerfile trae Pango y las fuentes que WeasyPrint necesita.
+      - name: Ejecutar pruebas en Docker
+        run: docker build --target pruebas services/report-service
 
   frontend:
     name: Frontend · compilar
@@ -119,10 +161,31 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-  contenedores:
-    name: Docker · validar configuración
+  kubernetes:
+    name: Kubernetes · validar manifiestos
     runs-on: ubuntu-latest
-    needs: [dotnet, gateway, auth, alert, frontend]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Generar y validar overlays
+        run: |
+          for entorno in local produccion produccion-proxy; do
+            echo "== $entorno"
+            kubectl kustomize infrastructure/k8s/overlays/$entorno > /tmp/$entorno.yaml
+            # ClusterIssuer (cert-manager) y Middleware (Traefik) son CRD sin esquema público.
+            kubeconform -strict -summary -ignore-missing-schemas /tmp/$entorno.yaml
+          done
+
+  contenedores:
+    name: Docker · validar Compose
+    runs-on: ubuntu-latest
+    needs: [dotnet, auth, alert, audit, report, frontend]
 
     steps:
       - uses: actions/checkout@v4
@@ -133,3 +196,51 @@ jobs:
           mkdir -p secrets
           openssl genrsa 3072 > secrets/jwt-private.pem 2>/dev/null
           docker compose config --quiet
+
+  imagenes:
+    name: Publicar imagen · ${{ matrix.nombre }}
+    # Solo al integrar en main: las imágenes que usa el overlay de producción de Kubernetes.
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    needs: [contenedores, kubernetes]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { nombre: auth-service, contexto: services/auth-service, dockerfile: services/auth-service/Dockerfile }
+          - { nombre: community-service, contexto: services, dockerfile: services/community-service/Dockerfile }
+          - { nombre: sensor-service, contexto: services, dockerfile: services/sensor-service/Dockerfile }
+          - { nombre: alert-service, contexto: services/alert-service, dockerfile: services/alert-service/Dockerfile }
+          - { nombre: report-service, contexto: services/report-service, dockerfile: services/report-service/Dockerfile }
+          - { nombre: audit-service, contexto: services/audit-service, dockerfile: services/audit-service/Dockerfile }
+          - { nombre: api-gateway, contexto: services/api-gateway, dockerfile: services/api-gateway/Dockerfile }
+          - { nombre: web, contexto: frontend, dockerfile: frontend/Dockerfile }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Nombre de la imagen (GHCR exige minúsculas)
+        id: nombre
+        run: echo "imagen=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/swmatrc-${{ matrix.nombre }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.contexto }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ steps.nombre.outputs.imagen }}:latest
+            ${{ steps.nombre.outputs.imagen }}:${{ github.sha }}
+          cache-from: type=gha,scope=${{ matrix.nombre }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.nombre }}

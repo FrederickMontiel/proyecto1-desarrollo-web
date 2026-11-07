@@ -1,11 +1,14 @@
 name: swmatrc
 
 # --------------------------------------------------------------------------------------
-# Sistema Web de Monitoreo y Alerta Temprana para Riesgos Climáticos — Fase 3
+# Sistema Web de Monitoreo y Alerta Temprana para Riesgos Climáticos — Docker Compose
+#
+# Entorno de desarrollo y alternativa sencilla. El despliegue de la Fase 4 es Kubernetes/K3s:
+# ver infrastructure/k8s/README.md.
 #
 # Arquitectura de microservicios:
 #
-#   nginx (VPS/WSL, HTTPS) ──> gateway (YARP) ──> auth | community | sensor | alert | report | audit
+#   nginx (VPS/WSL, HTTPS) ──> api-gateway (YARP) ──> auth | community | sensor | alert | report | audit
 #                          └─> web (Angular)
 #
 # Un contenedor por motor de base de datos (PostgreSQL, SQL Server, MongoDB) y, dentro de
@@ -45,7 +48,7 @@ services:
       # Desde PostgreSQL 18 la imagen guarda los datos en un subdirectorio por versión
       # mayor, así que el volumen se monta en /var/lib/postgresql y no en .../data.
       - datos-postgres:/var/lib/postgresql
-      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
+      - ./database/postgres/init.sh:/docker-entrypoint-initdb.d/10-init.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
       interval: 10s
@@ -93,7 +96,7 @@ services:
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
       SENSOR_DB_PASSWORD: ${SENSOR_DB_PASSWORD:?Defina SENSOR_DB_PASSWORD en .env}
     volumes:
-      - ./infra/sqlserver/init.sql:/init/init.sql:ro
+      - ./database/sqlserver/init.sql:/init/init.sql:ro
     entrypoint:
       - /bin/bash
       - -c
@@ -113,7 +116,7 @@ services:
       AUDIT_DB_PASSWORD: ${AUDIT_DB_PASSWORD:?Defina AUDIT_DB_PASSWORD en .env}
     volumes:
       - datos-mongo:/data/db
-      - ./infra/mongo/init.js:/docker-entrypoint-initdb.d/10-init.js:ro
+      - ./database/mongodb/init.js:/docker-entrypoint-initdb.d/10-init.js:ro
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
@@ -185,6 +188,14 @@ services:
         audit-service:${SVC_SECRETO_AUDIT:?Defina SVC_SECRETO_AUDIT en .env}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # --- Fase 4: OAuth 2.0 / OpenID Connect ---
+      # Dirección por la que el navegador entra al sistema; de ella salen las URL de callback.
+      URL_PUBLICA: ${URL_PUBLICA:-http://localhost:10001}
+      OAUTH_REGISTRO_ABIERTO: ${OAUTH_REGISTRO_ABIERTO:-true}
+      OAUTH_GOOGLE_CLIENT_ID: ${OAUTH_GOOGLE_CLIENT_ID:-}
+      OAUTH_GOOGLE_CLIENT_SECRET: ${OAUTH_GOOGLE_CLIENT_SECRET:-}
+      OAUTH_GITHUB_CLIENT_ID: ${OAUTH_GITHUB_CLIENT_ID:-}
+      OAUTH_GITHUB_CLIENT_SECRET: ${OAUTH_GITHUB_CLIENT_SECRET:-}
     secrets:
       - jwt_private_key
     healthcheck:
@@ -250,6 +261,10 @@ services:
       Simulacion__IntervaloSegundos: ${SIMULACION_INTERVALO_SEGUNDOS:-3}
       # El simulador guarda estado en memoria: con varias réplicas, solo una lo activa.
       Simulacion__Habilitada: "true"
+      # Sensores físicos: la Raspberry Pi reporta por POST /api/sensors/iot/readings.
+      Iot__Dispositivos__0__Id: raspberry-01
+      Iot__Dispositivos__0__Llave: ${IOT_RASPBERRY_LLAVE:-}
+      Iot__Dispositivos__0__Sensores: ${IOT_RASPBERRY_SENSORES:-RPI-TEMP-01,RPI-HUM-01,RPI-VIB-01}
     healthcheck:
       test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/health/ready || exit 1"]
       interval: 15s
@@ -368,9 +383,9 @@ services:
   # Punto de entrada
   # ====================================================================================
 
-  gateway:
+  api-gateway:
     build:
-      context: ./gateway
+      context: ./services/api-gateway
       dockerfile: Dockerfile
     container_name: swmatrc-gateway
     <<: *logs
@@ -404,7 +419,7 @@ services:
     container_name: swmatrc-web
     <<: *logs
     depends_on:
-      gateway:
+      api-gateway:
         condition: service_started
     ports:
       - "${IP_PUBLICACION:-127.0.0.1}:${PUERTO_WEB:-10001}:80"
@@ -415,7 +430,7 @@ services:
 # Se montan como archivos en /run/secrets/<nombre>, igual que un Secret de Kubernetes.
 secrets:
   jwt_private_key:
-    # Se genera con infra/generar-llaves.sh; la carpeta secrets/ no se versiona.
+    # Se genera con infrastructure/docker/generar-llaves.sh; la carpeta secrets/ no se versiona.
     file: ./secrets/jwt-private.pem
 
 volumes:

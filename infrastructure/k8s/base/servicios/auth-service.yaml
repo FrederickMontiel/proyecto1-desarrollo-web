@@ -1,0 +1,141 @@
+# --------------------------------------------------------------------------------------
+# Auth Service (NestJS + PostgreSQL): identidad central. Login local, OAuth 2.0 / OpenID
+# Connect con Google y GitHub, emisión de JWT RS256 y publicación del JWKS.
+#
+# Secretos montados como ARCHIVOS (no variables): la llave privada del JWT y los Client
+# Secrets de OAuth. El servicio los lee con <VARIABLE>_FILE.
+# --------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/component: microservicio
+spec:
+  selector:
+    app.kubernetes.io/name: auth-service
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  labels:
+    app.kubernetes.io/name: auth-service
+    app.kubernetes.io/component: microservicio
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: auth-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: auth-service
+        app.kubernetes.io/component: microservicio
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        # Los archivos de los Secrets montados quedan con este grupo: el usuario 1000 los lee.
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: auth-service
+          image: swmatrc/auth-service
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: DB_HOST
+              value: postgres
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NOMBRE
+              value: auth_db
+            - name: DB_USUARIO
+              value: auth_svc
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: AUTH_DB_PASSWORD } }
+            - name: JWT_LLAVE_PRIVADA_FILE
+              value: /run/secrets/jwt/jwt-private.pem
+            - name: JWT_EMISOR
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_EMISOR } }
+            - name: JWT_AUDIENCIA
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_AUDIENCIA } }
+            - name: JWT_MINUTOS_VIGENCIA
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_MINUTOS_VIGENCIA } }
+            - name: URL_INTERNA
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_AUTH } }
+            - name: URL_AUDITORIA
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_AUDITORIA } }
+            - name: CLIENTES_SERVICIO
+              valueFrom: { secretKeyRef: { name: swmatrc-servicios, key: CLIENTES_SERVICIO } }
+            - name: ADMIN_EMAIL
+              valueFrom: { secretKeyRef: { name: swmatrc-admin, key: ADMIN_EMAIL, optional: true } }
+            - name: ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-admin, key: ADMIN_PASSWORD, optional: true } }
+            # --- OAuth 2.0 / OpenID Connect ---
+            - name: URL_PUBLICA
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_PUBLICA } }
+            - name: OAUTH_REGISTRO_ABIERTO
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: OAUTH_REGISTRO_ABIERTO } }
+            - name: OAUTH_GOOGLE_CLIENT_ID_FILE
+              value: /run/secrets/oauth/OAUTH_GOOGLE_CLIENT_ID
+            - name: OAUTH_GOOGLE_CLIENT_SECRET_FILE
+              value: /run/secrets/oauth/OAUTH_GOOGLE_CLIENT_SECRET
+            - name: OAUTH_GITHUB_CLIENT_ID_FILE
+              value: /run/secrets/oauth/OAUTH_GITHUB_CLIENT_ID
+            - name: OAUTH_GITHUB_CLIENT_SECRET_FILE
+              value: /run/secrets/oauth/OAUTH_GITHUB_CLIENT_SECRET
+          volumeMounts:
+            - name: jwt
+              mountPath: /run/secrets/jwt
+              readOnly: true
+            - name: oauth
+              mountPath: /run/secrets/oauth
+              readOnly: true
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 3
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 4
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: jwt
+          secret:
+            secretName: swmatrc-jwt
+            defaultMode: 0440
+        - name: oauth
+          secret:
+            secretName: swmatrc-oauth
+            # Sin proveedores configurados el Secret puede no existir: solo login local.
+            optional: true
+            defaultMode: 0440

@@ -1,0 +1,97 @@
+# Community Service (.NET 10 + PostgreSQL): comunidades y su GeoJSON.
+apiVersion: v1
+kind: Service
+metadata:
+  name: community-service
+  labels:
+    app.kubernetes.io/name: community-service
+    app.kubernetes.io/component: microservicio
+spec:
+  selector:
+    app.kubernetes.io/name: community-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: community-service
+  labels:
+    app.kubernetes.io/name: community-service
+    app.kubernetes.io/component: microservicio
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: community-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: community-service
+        app.kubernetes.io/component: microservicio
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: community-service
+          image: swmatrc/community-service
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: ASPNETCORE_ENVIRONMENT } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: COMMUNITY_DB_PASSWORD } }
+            # $(DB_PASSWORD) lo expande Kubernetes con la variable definida arriba.
+            - name: ConnectionStrings__Postgres
+              value: "Host=postgres;Port=5432;Database=community_db;Username=community_svc;Password=$(DB_PASSWORD)"
+            - name: Autenticacion__UrlMetadatos
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: AUTH_URL_METADATOS } }
+            - name: Autenticacion__Emisor
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_EMISOR } }
+            - name: Autenticacion__Audiencia
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_AUDIENCIA } }
+            - name: Servicio__Nombre
+              value: community-service
+            - name: Servicio__Secreto
+              valueFrom: { secretKeyRef: { name: swmatrc-servicios, key: SVC_SECRETO_COMMUNITY } }
+            - name: Servicio__UrlAuth
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_AUTH } }
+            - name: Servicio__UrlAuditoria
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_AUDITORIA } }
+            - name: Servicios__UrlSensor
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_SENSOR } }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 3
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 4
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 512Mi }
+      volumes:
+        - name: tmp
+          emptyDir: {}

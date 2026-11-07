@@ -1,0 +1,40 @@
+# --------------------------------------------------------------------------------------
+# Ingress: ÚNICO punto de entrada externo (sección 12). En K3s lo atiende Traefik.
+#
+#   https://<dominio>/api/...   → api-gateway  (REST; incluye /api/auth/callback/google|github)
+#   https://<dominio>/hubs/...  → api-gateway  (SignalR por WebSocket)
+#   https://<dominio>/...       → web          (Angular)
+#
+# El dominio y el TLS los pone cada overlay (local: http://localhost; produccion: HTTPS con
+# certificado de Let's Encrypt emitido por cert-manager).
+# --------------------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: swmatrc
+  labels:
+    app.kubernetes.io/name: swmatrc-ingress
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: sistema-climatico.example
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port: { name: http }
+          - path: /hubs
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port: { name: http }
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port: { name: http }

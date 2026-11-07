@@ -1,0 +1,10 @@
+# Middleware de Traefik: redirige HTTP → HTTPS (301). El Ingress lo referencia como
+# "swmatrc-redireccion-https@kubernetescrd" (<namespace>-<nombre>).
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redireccion-https
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true

@@ -1,0 +1,134 @@
+# --------------------------------------------------------------------------------------
+# SQL Server 2022 (Developer): sensor_db para Sensor Service.
+# Necesita al menos 2 GB de memoria. El Job sqlserver-init crea la base y el login
+# sensor_svc con database/sqlserver/init.sql (idempotente: se puede repetir).
+# --------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: sqlserver
+  labels:
+    app.kubernetes.io/name: sqlserver
+    app.kubernetes.io/component: base-de-datos
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: sqlserver
+  ports:
+    - name: tds
+      port: 1433
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sqlserver
+  labels:
+    app.kubernetes.io/name: sqlserver
+    app.kubernetes.io/component: base-de-datos
+spec:
+  serviceName: sqlserver
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sqlserver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sqlserver
+        app.kubernetes.io/component: base-de-datos
+    spec:
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        # La imagen corre como el usuario mssql (10001): el volumen debe ser suyo.
+        fsGroup: 10001
+      containers:
+        - name: sqlserver
+          image: mcr.microsoft.com/mssql/server:2022-latest
+          ports:
+            - name: tds
+              containerPort: 1433
+          env:
+            - name: ACCEPT_EULA
+              value: "Y"
+            - name: MSSQL_PID
+              value: Developer
+            - name: MSSQL_COLLATION
+              value: Modern_Spanish_CI_AS
+            - name: MSSQL_SA_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: MSSQL_SA_PASSWORD } }
+          volumeMounts:
+            - name: datos
+              mountPath: /var/opt/mssql
+          startupProbe:
+            tcpSocket: { port: 1433 }
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" -b -o /dev/null
+            periodSeconds: 10
+            timeoutSeconds: 8
+          livenessProbe:
+            tcpSocket: { port: 1433 }
+            periodSeconds: 20
+            failureThreshold: 6
+          resources:
+            requests: { cpu: 250m, memory: 2Gi }
+            limits: { memory: 3Gi }
+  volumeClaimTemplates:
+    - metadata:
+        name: datos
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+# Crea sensor_db y el login sensor_svc. Reintenta hasta que SQL Server acepte conexiones.
+# Se borra solo 10 min después de terminar, así el próximo despliegue lo vuelve a crear y
+# ejecutar (el script es idempotente).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sqlserver-init
+  labels:
+    app.kubernetes.io/name: sqlserver-init
+    app.kubernetes.io/component: base-de-datos
+spec:
+  backoffLimit: 20
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sqlserver-init
+        app.kubernetes.io/component: base-de-datos
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: mcr.microsoft.com/mssql/server:2022-latest
+          command:
+            - /bin/bash
+            - -c
+            - >-
+              /opt/mssql-tools18/bin/sqlcmd -S sqlserver -U sa -P "$MSSQL_SA_PASSWORD" -C -b
+              -i /init/init.sql -v SENSOR_DB_PASSWORD="$SENSOR_DB_PASSWORD"
+          env:
+            - name: MSSQL_SA_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: MSSQL_SA_PASSWORD } }
+            - name: SENSOR_DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: SENSOR_DB_PASSWORD } }
+          volumeMounts:
+            - name: init
+              mountPath: /init
+              readOnly: true
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: init
+          configMap:
+            name: db-init-sqlserver

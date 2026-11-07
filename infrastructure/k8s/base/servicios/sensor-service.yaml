@@ -1,0 +1,213 @@
+# --------------------------------------------------------------------------------------
+# Sensor Service (.NET 10 + SQL Server + SignalR). Dos Deployments con la MISMA imagen:
+#
+#   sensor-service    API REST + hub SignalR. Escala horizontalmente (2+ réplicas). Redis
+#                     reparte los mensajes del hub entre los pods.
+#   sensor-simulador  Ciclo de adquisición simulado. Exactamente 1 réplica: el estado de los
+#                     episodios climáticos vive en memoria. No recibe tráfico del Service.
+# --------------------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: sensor-service
+  labels:
+    app.kubernetes.io/name: sensor-service
+    app.kubernetes.io/component: microservicio
+spec:
+  selector:
+    app.kubernetes.io/name: sensor-service
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sensor-service
+  labels:
+    app.kubernetes.io/name: sensor-service
+    app.kubernetes.io/component: microservicio
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sensor-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sensor-service
+        app.kubernetes.io/component: microservicio
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: sensor-service
+          image: swmatrc/sensor-service
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: ASPNETCORE_ENVIRONMENT } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: SENSOR_DB_PASSWORD } }
+            - name: ConnectionStrings__SqlServer
+              value: "Server=sqlserver,1433;Database=sensor_db;User Id=sensor_svc;Password=$(DB_PASSWORD);TrustServerCertificate=True;Encrypt=True"
+            - name: ConnectionStrings__Redis
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: REDIS_CONEXION } }
+            - name: Autenticacion__UrlMetadatos
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: AUTH_URL_METADATOS } }
+            - name: Autenticacion__Emisor
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_EMISOR } }
+            - name: Autenticacion__Audiencia
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_AUDIENCIA } }
+            - name: Servicio__Nombre
+              value: sensor-service
+            - name: Servicio__Secreto
+              valueFrom: { secretKeyRef: { name: swmatrc-servicios, key: SVC_SECRETO_SENSOR } }
+            - name: Servicio__UrlAuth
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_AUTH } }
+            - name: Servicio__UrlAuditoria
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_AUDITORIA } }
+            - name: Servicios__UrlCommunity
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_COMMUNITY } }
+            - name: Servicios__UrlAlert
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_ALERT } }
+            - name: Simulacion__IntervaloSegundos
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: SIMULACION_INTERVALO_SEGUNDOS } }
+            # Las réplicas de la API no simulan: de eso se encarga sensor-simulador.
+            - name: Simulacion__Habilitada
+              value: "false"
+            # Recepción de lecturas reales: la API valida la llave del dispositivo.
+            - name: Iot__Dispositivos__0__Id
+              value: raspberry-01
+            - name: Iot__Dispositivos__0__Llave
+              valueFrom: { secretKeyRef: { name: swmatrc-iot, key: IOT_RASPBERRY_LLAVE, optional: true } }
+            - name: Iot__Dispositivos__0__Sensores
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: IOT_RASPBERRY_SENSORES } }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 4
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { memory: 768Mi }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sensor-simulador
+  labels:
+    app.kubernetes.io/name: sensor-simulador
+    app.kubernetes.io/component: simulador
+spec:
+  # Una sola réplica, y Recreate: nunca dos simuladores a la vez, ni durante una actualización.
+  replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sensor-simulador
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sensor-simulador
+        app.kubernetes.io/component: simulador
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1654
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: sensor-simulador
+          image: swmatrc/sensor-service
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: ASPNETCORE_ENVIRONMENT
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: ASPNETCORE_ENVIRONMENT } }
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: SENSOR_DB_PASSWORD } }
+            - name: ConnectionStrings__SqlServer
+              value: "Server=sqlserver,1433;Database=sensor_db;User Id=sensor_svc;Password=$(DB_PASSWORD);TrustServerCertificate=True;Encrypt=True"
+            - name: ConnectionStrings__Redis
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: REDIS_CONEXION } }
+            - name: Autenticacion__UrlMetadatos
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: AUTH_URL_METADATOS } }
+            - name: Autenticacion__Emisor
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_EMISOR } }
+            - name: Autenticacion__Audiencia
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_AUDIENCIA } }
+            - name: Servicio__Nombre
+              value: sensor-service
+            - name: Servicio__Secreto
+              valueFrom: { secretKeyRef: { name: swmatrc-servicios, key: SVC_SECRETO_SENSOR } }
+            - name: Servicio__UrlAuth
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_AUTH } }
+            - name: Servicio__UrlAuditoria
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_AUDITORIA } }
+            - name: Servicios__UrlCommunity
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_COMMUNITY } }
+            - name: Servicios__UrlAlert
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: URL_ALERT } }
+            - name: Simulacion__IntervaloSegundos
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: SIMULACION_INTERVALO_SEGUNDOS } }
+            - name: Simulacion__Habilitada
+              value: "true"
+            # Solo necesita saber qué sensores son físicos (no los simula); no recibe la llave.
+            - name: Iot__Dispositivos__0__Id
+              value: raspberry-01
+            - name: Iot__Dispositivos__0__Sensores
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: IOT_RASPBERRY_SENSORES } }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 3
+            failureThreshold: 60
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 4
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { memory: 768Mi }
+      volumes:
+        - name: tmp
+          emptyDir: {}

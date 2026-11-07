@@ -1,0 +1,46 @@
+# --------------------------------------------------------------------------------------
+# Parámetros NO sensibles (sección 13): URLs internas, entorno y banderas de funcionalidad.
+# Los overlays sobrescriben URL_PUBLICA y CORS_ORIGEN con el dominio de cada entorno.
+#
+# Lo sensible (contraseñas, llave JWT, Client Secrets de OAuth) va en Secrets:
+# ver scripts/crear-secretos.sh.
+# --------------------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: swmatrc-config
+data:
+  # --- Entorno ---
+  ENTORNO: "produccion"
+  ASPNETCORE_ENVIRONMENT: "Production"
+  ZONA_HORARIA: "America/Guatemala"
+
+  # --- Dirección pública (la del Ingress) ---
+  URL_PUBLICA: "https://sistema-climatico.example"
+  CORS_ORIGEN: "https://sistema-climatico.example"
+
+  # --- JWT emitido por Auth Service ---
+  JWT_EMISOR: "swmatrc-auth"
+  JWT_AUDIENCIA: "swmatrc-web"
+  JWT_MINUTOS_VIGENCIA: "480"
+
+  # --- URLs internas (DNS de los Services de Kubernetes) ---
+  URL_AUTH: "http://auth-service:3000"
+  URL_COMMUNITY: "http://community-service:8080"
+  URL_SENSOR: "http://sensor-service:8080"
+  URL_ALERT: "http://alert-service:8080"
+  URL_AUDITORIA: "http://audit-service:8000"
+  AUTH_URL_METADATOS: "http://auth-service:3000/.well-known/openid-configuration"
+  JWT_JWKS: "http://auth-service:3000/.well-known/jwks.json"
+  # nginx no usa los dominios de búsqueda de resolv.conf: necesita el nombre completo.
+  GATEWAY_URL: "http://api-gateway.swmatrc.svc.cluster.local:8080"
+  REDIS_CONEXION: "redis:6379,abortConnect=false"
+
+  # --- Banderas de funcionalidad ---
+  # Quien entra por primera vez con Google/GitHub recibe una cuenta VIEWER (false: solo
+  # entran correos ya registrados por un administrador).
+  OAUTH_REGISTRO_ABIERTO: "true"
+  # Sensores físicos que reporta la Raspberry Pi (no se simulan).
+  IOT_RASPBERRY_SENSORES: "RPI-TEMP-01,RPI-HUM-01,RPI-VIB-01"
+  # Periodo del simulador de sensores, en segundos.
+  SIMULACION_INTERVALO_SEGUNDOS: "2"

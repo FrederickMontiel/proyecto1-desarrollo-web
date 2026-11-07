@@ -1,0 +1,88 @@
+# Audit Service (Python + FastAPI + MongoDB): bitácora de acciones de todos los servicios.
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-service
+  labels:
+    app.kubernetes.io/name: audit-service
+    app.kubernetes.io/component: microservicio
+spec:
+  selector:
+    app.kubernetes.io/name: audit-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-service
+  labels:
+    app.kubernetes.io/name: audit-service
+    app.kubernetes.io/component: microservicio
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: audit-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: audit-service
+        app.kubernetes.io/component: microservicio
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: audit-service
+          image: swmatrc/audit-service
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: MONGO_HOST
+              value: mongo
+            - name: MONGO_BASE
+              value: audit_db
+            - name: MONGO_USUARIO
+              value: audit_svc
+            - name: MONGO_PASSWORD
+              valueFrom: { secretKeyRef: { name: swmatrc-db, key: AUDIT_DB_PASSWORD } }
+            - name: AUTH_URL_METADATOS
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: AUTH_URL_METADATOS } }
+            - name: JWT_EMISOR
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_EMISOR } }
+            - name: JWT_AUDIENCIA
+              valueFrom: { configMapKeyRef: { name: swmatrc-config, key: JWT_AUDIENCIA } }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+          startupProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 3
+            failureThreshold: 40
+          livenessProbe:
+            httpGet: { path: /health/live, port: http }
+            periodSeconds: 15
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 4
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+      volumes:
+        - name: tmp
+          emptyDir: {}

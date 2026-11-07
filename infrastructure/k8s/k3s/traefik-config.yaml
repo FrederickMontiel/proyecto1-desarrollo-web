@@ -1,0 +1,17 @@
+# --------------------------------------------------------------------------------------
+# Ajustes del Traefik que trae K3s (se aplica en kube-system; K3s vuelve a instalar el chart
+# con estos valores). Lo aplica scripts/instalar-k3s.sh.
+#
+# Traefik 3 corta por defecto una conexión a los 60 s de lectura (readTimeout). El canal de
+# alertas en tiempo real es un WebSocket que vive horas: se quita ese límite.
+# --------------------------------------------------------------------------------------
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    additionalArguments:
+      - "--entryPoints.web.transport.respondingTimeouts.readTimeout=0s"
+      - "--entryPoints.websecure.transport.respondingTimeouts.readTimeout=0s"

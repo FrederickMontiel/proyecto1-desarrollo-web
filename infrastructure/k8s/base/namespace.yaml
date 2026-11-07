@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: swmatrc
+  labels:
+    # Pod Security Standards: los pods del sistema no pueden pedir privilegios de host.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/warn: restricted
