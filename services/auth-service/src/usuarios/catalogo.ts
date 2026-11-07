@@ -25,24 +25,53 @@ export const PERMISOS = {
 
 export type CodigoPermiso = (typeof PERMISOS)[keyof typeof PERMISOS]['codigo'];
 
-/** Los tres roles de la Fase 2, conservados con el mismo nombre para no romper nada. */
+/**
+ * Roles de la Fase 4 (sección 15 del documento). Los códigos viajan en el claim `roles` del
+ * JWT; en pantalla se muestran con su nombre en español.
+ */
 export enum CodigoRol {
-  Consulta = 'Consulta',
-  Operador = 'Operador',
-  Administrador = 'Administrador',
+  Viewer = 'VIEWER',
+  Operator = 'OPERATOR',
+  Admin = 'ADMIN',
 }
+
+/** Rol de los tokens de servicio a servicio. No se asigna nunca a un usuario. */
+export const ROL_SERVICIO = 'SERVICE';
+
+export const NOMBRES_ROL: Record<CodigoRol, string> = {
+  [CodigoRol.Viewer]: 'Consulta',
+  [CodigoRol.Operator]: 'Operador',
+  [CodigoRol.Admin]: 'Administrador',
+};
+
+/** Rol con el que entra por primera vez quien se registra con Google, GitHub u otro proveedor. */
+export const ROL_PREDETERMINADO_EXTERNO = CodigoRol.Viewer;
 
 const P = PERMISOS;
 
 const LECTURA: CodigoPermiso[] = [P.comunidadesLeer.codigo, P.sensoresLeer.codigo, P.alertasLeer.codigo];
 
+/**
+ * Permisos que además exigen el rol ADMIN en todos los servicios (RNF-OAUTH-03: rutas
+ * administrativas protegidas por roles). Los servicios repiten esta lista.
+ */
+export const PERMISOS_ADMINISTRATIVOS: CodigoPermiso[] = [
+  P.comunidadesEditar.codigo,
+  P.sensoresEditar.codigo,
+  P.reglasEditar.codigo,
+  P.reportesDescargar.codigo,
+  P.auditoriaLeer.codigo,
+  P.usuariosAdministrar.codigo,
+  P.sistemaAdministrar.codigo,
+];
+
 export const ROLES: Record<CodigoRol, { descripcion: string; permisos: CodigoPermiso[] }> = {
-  [CodigoRol.Consulta]: {
-    descripcion: 'Solo lectura del dashboard y del historial.',
+  [CodigoRol.Viewer]: {
+    descripcion: 'Consulta del dashboard, alertas e historial.',
     permisos: LECTURA,
   },
-  [CodigoRol.Operador]: {
-    descripcion: 'Atiende alertas, corrige lecturas y genera reportes.',
+  [CodigoRol.Operator]: {
+    descripcion: 'Gestión operativa de sensores, alertas y eventos; genera reportes.',
     permisos: [
       ...LECTURA,
       P.alertasAtender.codigo,
@@ -51,9 +80,9 @@ export const ROLES: Record<CodigoRol, { descripcion: string; permisos: CodigoPer
       P.reportesGenerar.codigo,
     ],
   },
-  [CodigoRol.Administrador]: {
+  [CodigoRol.Admin]: {
     // RF-REP-10: la descarga de reportes es exclusiva de los administradores.
-    descripcion: 'Control total del sistema.',
+    descripcion: 'Gestión completa de usuarios, comunidades, sensores, alertas, reportes y auditoría.',
     permisos: Object.values(P).map((p) => p.codigo),
   },
 };

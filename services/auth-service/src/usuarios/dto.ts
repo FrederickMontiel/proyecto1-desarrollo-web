@@ -9,7 +9,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { CodigoRol } from './catalogo.js';
+import { CodigoRol, NOMBRES_ROL } from './catalogo.js';
 import type { Usuario } from './entidades.js';
 
 const recortar = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
@@ -41,7 +41,7 @@ export class CrearUsuarioDto {
   password: string;
 
   @IsEnum(CodigoRol, { message: `El rol debe ser uno de: ${ROLES_VALIDOS}.` })
-  rol: CodigoRol = CodigoRol.Consulta;
+  rol: CodigoRol = CodigoRol.Viewer;
 }
 
 /** El correo no se modifica: es la credencial de acceso y la referencia de la auditoría. */
@@ -110,6 +110,7 @@ export interface UsuarioRespuesta {
   rolNombre: string;
   permisos: string[];
   activo: boolean;
+  fotoUrl: string | null;
   ultimoAcceso: Date | null;
   fechaCreacion: Date;
 }
@@ -118,6 +119,15 @@ export interface SesionRespuesta {
   token: string;
   expira: Date;
   usuario: UsuarioRespuesta;
+  /** `local`, `google`, `github`… */
+  proveedor: string;
+}
+
+export class CanjearCodigoDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Falta el código de acceso.' })
+  @MaxLength(100)
+  codigo: string;
 }
 
 export function aRespuesta(u: Usuario): UsuarioRespuesta {
@@ -126,9 +136,10 @@ export function aRespuesta(u: Usuario): UsuarioRespuesta {
     nombreCompleto: u.nombreCompleto,
     email: u.email,
     rol: u.rol.codigo,
-    rolNombre: u.rol.codigo,
+    rolNombre: NOMBRES_ROL[u.rol.codigo as CodigoRol] ?? u.rol.codigo,
     permisos: u.rol.permisos.map((p) => p.codigo).sort(),
     activo: u.activo,
+    fotoUrl: u.fotoUrl ?? null,
     ultimoAcceso: u.ultimoAcceso,
     fechaCreacion: u.fechaCreacion,
   };

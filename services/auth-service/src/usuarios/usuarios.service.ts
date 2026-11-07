@@ -79,7 +79,7 @@ export class UsuariosService {
 
       // Quitarse a uno mismo el rol de administrador deja la sesión en curso con un token
       // que ya no corresponde a los permisos reales: se bloquea antes de que ocurra.
-      if (usuario.id === ctx.identidad?.id && rolAnterior === CodigoRol.Administrador && dto.rol !== CodigoRol.Administrador)
+      if (usuario.id === ctx.identidad?.id && rolAnterior === CodigoRol.Admin && dto.rol !== CodigoRol.Admin)
         throw new BadRequestException('No puede retirarse a sí mismo el rol de administrador.');
 
       await this.asegurarQueQuedaAdministrador(tx, usuario, dto.rol, usuario.activo);
@@ -172,15 +172,15 @@ export class UsuariosService {
     rolFuturo: string,
     activoFuturo: boolean,
   ): Promise<void> {
-    if (rolFuturo === CodigoRol.Administrador && activoFuturo) return;
-    if (usuario.rol.codigo !== CodigoRol.Administrador || !usuario.activo) return;
+    if (rolFuturo === CodigoRol.Admin && activoFuturo) return;
+    if (usuario.rol.codigo !== CodigoRol.Admin || !usuario.activo) return;
 
     const otros = await tx
       .getRepository(Usuario)
       .createQueryBuilder('u')
       .innerJoin('u.rol', 'rol')
       .where('u.id <> :id', { id: usuario.id })
-      .andWhere('rol.codigo = :admin', { admin: CodigoRol.Administrador })
+      .andWhere('rol.codigo = :admin', { admin: CodigoRol.Admin })
       .andWhere('u.activo = true')
       .getCount();
 

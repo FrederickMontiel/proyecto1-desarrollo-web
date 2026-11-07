@@ -42,11 +42,13 @@ export class AutenticacionService {
       .where('u.email = :email', { email })
       .getOne();
 
+    // Las cuentas creadas con Google o GitHub no tienen contraseña local: se comparan contra
+    // el señuelo para que fallen igual que cualquier otra y en el mismo tiempo.
     const valida = await bcrypt.compare(dto.password, usuario?.passwordHash ?? HASH_SENUELO);
 
     // Mismo mensaje para usuario inexistente y contraseña incorrecta: no se revela cuáles
     // correos están registrados.
-    if (!usuario || !valida) {
+    if (!usuario || !usuario.passwordHash || !valida) {
       this.auditoria.registrar(
         { accion: 'InicioSesionFallido', entidad: 'Usuario', detalle: { email } },
         ctx,
@@ -56,13 +58,26 @@ export class AutenticacionService {
 
     if (!usuario.activo) throw new UnauthorizedException('La cuenta está deshabilitada. Contacte al administrador.');
 
+    return this.emitirSesion(usuario, 'local', ctx);
+  }
+
+  /**
+   * Emite el JWT del sistema para un usuario ya autenticado —con contraseña o con un
+   * proveedor externo— y registra la sesión. El usuario debe venir con su rol y permisos.
+   */
+  async emitirSesion(
+    usuario: Usuario,
+    proveedor: string,
+    ctx: ContextoPeticion & { agente?: string },
+  ): Promise<SesionRespuesta> {
     const respuesta = aRespuesta(usuario);
     const emitido = await this.tokens.emitirUsuario({
       id: usuario.id,
       email: usuario.email,
       nombre: usuario.nombreCompleto,
-      rol: respuesta.rol,
+      roles: [respuesta.rol],
       permisos: respuesta.permisos,
+      proveedor,
     });
 
     await this.db.transaction(async (tx) => {
@@ -74,6 +89,7 @@ export class AutenticacionService {
         expiraEn: emitido.expira,
         direccionIp: ctx.ip?.slice(0, 64) ?? null,
         agenteUsuario: ctx.agente?.slice(0, 300) ?? null,
+        proveedor,
       });
       // Limpieza oportunista: las sesiones vencidas de este usuario ya no sirven para nada.
       await tx.delete(Sesion, { usuarioId: usuario.id, expiraEn: LessThan(new Date()) });
@@ -83,16 +99,21 @@ export class AutenticacionService {
     // autor se indica de forma explícita para que la auditoría no diga "sistema".
     this.auditoria.registrar(
       {
-        accion: 'InicioSesion',
+        accion: proveedor === 'local' ? 'InicioSesion' : 'InicioSesionExterno',
         entidad: 'Usuario',
         entidadId: usuario.id,
-        detalle: { rol: respuesta.rol },
+        detalle: { rol: respuesta.rol, proveedor },
         autor: { id: usuario.id, email: usuario.email },
       },
       ctx,
     );
 
-    return { token: emitido.token, expira: emitido.expira, usuario: { ...respuesta, ultimoAcceso: emitido.emitido } };
+    return {
+      token: emitido.token,
+      expira: emitido.expira,
+      usuario: { ...respuesta, ultimoAcceso: emitido.emitido },
+      proveedor,
+    };
   }
 
   /** Revoca la sesión del token con que se llama: deja de servir aunque no haya vencido. */
@@ -114,6 +135,10 @@ export class AutenticacionService {
       .where('u.id = :id', { id: identidad.id })
       .getOneOrFail();
 
+    if (!usuario.passwordHash)
+      throw new BadRequestException(
+        'Su cuenta entra con un proveedor externo y no tiene contraseña local. Un administrador puede asignarle una.',
+      );
     if (!(await bcrypt.compare(passwordActual, usuario.passwordHash)))
       throw new BadRequestException('La contraseña actual no es correcta.');
 

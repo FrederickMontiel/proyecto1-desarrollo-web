@@ -57,8 +57,13 @@ export class Usuario {
   @Column({ type: 'varchar', length: 160, unique: true })
   email: string;
 
-  @Column({ name: 'password_hash', type: 'varchar', length: 100, select: false })
-  passwordHash: string;
+  /** Nulo en las cuentas creadas con un proveedor externo: no tienen contraseña local. */
+  @Column({ name: 'password_hash', type: 'varchar', length: 100, nullable: true, select: false })
+  passwordHash: string | null;
+
+  /** Foto de perfil que entrega el proveedor externo (Google, GitHub). */
+  @Column({ name: 'foto_url', type: 'varchar', length: 500, nullable: true })
+  fotoUrl: string | null;
 
   @ManyToOne(() => Rol, { eager: true, nullable: false })
   @JoinColumn({ name: 'rol_id' })
@@ -108,11 +113,15 @@ export class Sesion {
 
   @Column({ name: 'agente_usuario', type: 'varchar', length: 300, nullable: true })
   agenteUsuario: string | null;
+
+  /** Con qué se inició la sesión: `local`, `google`, `github`… Va en el claim `provider`. */
+  @Column({ type: 'varchar', length: 40, default: 'local' })
+  proveedor: string;
 }
 
 /**
  * Vínculo entre un usuario local y una cuenta de un proveedor externo (Google, GitHub,
- * Facebook u otro OIDC). La tabla queda creada en la Fase 3 y se llena en la Fase 4.
+ * Microsoft u otro OIDC). Un usuario puede tener varias: entra con cualquiera de ellas.
  */
 @Entity('identidades_externas')
 @Index(['proveedor', 'sujeto'], { unique: true })
@@ -138,8 +147,60 @@ export class IdentidadExterna {
   @Column({ type: 'varchar', length: 160, nullable: true })
   email: string | null;
 
+  @Column({ type: 'varchar', length: 160, nullable: true })
+  nombre: string | null;
+
   @CreateDateColumn({ name: 'fecha_vinculacion', type: 'timestamptz' })
   fechaVinculacion: Date;
+
+  @Column({ name: 'ultimo_acceso', type: 'timestamptz', nullable: true })
+  ultimoAcceso: Date | null;
 }
 
-export const ENTIDADES = [Permiso, Rol, Usuario, Sesion, IdentidadExterna];
+/**
+ * Inicio de sesión externo en curso: se crea al mandar al usuario al proveedor y se consume
+ * (una sola vez) en el callback. Vive en PostgreSQL y no en memoria para que el callback
+ * pueda llegar a cualquier réplica del servicio.
+ */
+@Entity('oauth_solicitudes')
+export class SolicitudOauth {
+  /** Valor `state` de OAuth 2.0: aleatorio, protege contra CSRF en el callback. */
+  @PrimaryColumn({ type: 'varchar', length: 64 })
+  estado: string;
+
+  @Column({ type: 'varchar', length: 40 })
+  proveedor: string;
+
+  /** `code_verifier` de PKCE (RFC 7636). */
+  @Column({ type: 'varchar', length: 128 })
+  verificador: string;
+
+  /** `nonce` de OpenID Connect: liga el id_token a esta solicitud. */
+  @Column({ type: 'varchar', length: 64 })
+  nonce: string;
+
+  @Column({ name: 'expira_en', type: 'timestamptz' })
+  expiraEn: Date;
+}
+
+/**
+ * Código de un solo uso que el callback entrega al frontend en la URL. El frontend lo canjea
+ * por el JWT con un POST: así el token nunca aparece en la barra de direcciones, el historial
+ * ni los registros del proxy. Se guarda solo su resumen SHA-256.
+ */
+@Entity('codigos_acceso')
+export class CodigoAcceso {
+  @PrimaryColumn({ name: 'codigo_hash', type: 'char', length: 64 })
+  codigoHash: string;
+
+  @Column({ name: 'usuario_id', type: 'int' })
+  usuarioId: number;
+
+  @Column({ type: 'varchar', length: 40 })
+  proveedor: string;
+
+  @Column({ name: 'expira_en', type: 'timestamptz' })
+  expiraEn: Date;
+}
+
+export const ENTIDADES = [Permiso, Rol, Usuario, Sesion, IdentidadExterna, SolicitudOauth, CodigoAcceso];

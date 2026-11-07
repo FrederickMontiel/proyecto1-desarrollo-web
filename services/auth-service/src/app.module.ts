@@ -10,6 +10,8 @@ import { MIGRACIONES } from './base-datos/migraciones.js';
 import { SemillaService } from './base-datos/semilla.service.js';
 import { FiltroExcepciones } from './comun/filtro-excepciones.js';
 import { configuracion, type Configuracion } from './configuracion.js';
+import { OauthController } from './oauth/oauth.controller.js';
+import { OauthService } from './oauth/oauth.service.js';
 import { SaludController } from './salud.controller.js';
 import { DescubrimientoController } from './seguridad/descubrimiento.controller.js';
 import { GuardaAutenticacion } from './seguridad/guarda-autenticacion.js';
@@ -52,6 +54,7 @@ import { UsuariosService } from './usuarios/usuarios.service.js';
   ],
   controllers: [
     AutenticacionController,
+    OauthController,
     UsuariosController,
     InternoController,
     DescubrimientoController,
@@ -63,6 +66,7 @@ import { UsuariosService } from './usuarios/usuarios.service.js';
     AuditoriaService,
     UsuariosService,
     AutenticacionService,
+    OauthService,
     SemillaService,
     { provide: APP_GUARD, useClass: GuardaAutenticacion },
     { provide: APP_FILTER, useClass: FiltroExcepciones },

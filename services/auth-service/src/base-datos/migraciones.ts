@@ -78,4 +78,62 @@ export class EsquemaInicial1761091200000 implements MigrationInterface {
   }
 }
 
-export const MIGRACIONES = [EsquemaInicial1761091200000];
+/**
+ * Fase 4: autenticación externa (OAuth 2.0 / OpenID Connect) y roles del documento.
+ *
+ * - Los roles pasan a ADMIN / OPERATOR / VIEWER. Se renombran en su lugar: los usuarios
+ *   conservan su rol y sus ids.
+ * - La contraseña deja de ser obligatoria: quien entra con Google o GitHub no tiene una.
+ * - Tablas efímeras del flujo OAuth: solicitudes en curso y códigos de canje.
+ */
+export class AutenticacionExterna1762387200000 implements MigrationInterface {
+  name = 'AutenticacionExterna1762387200000';
+
+  async up(q: QueryRunner): Promise<void> {
+    await q.query(`UPDATE roles SET codigo = 'ADMIN' WHERE codigo = 'Administrador'`);
+    await q.query(`UPDATE roles SET codigo = 'OPERATOR' WHERE codigo = 'Operador'`);
+    await q.query(`UPDATE roles SET codigo = 'VIEWER' WHERE codigo = 'Consulta'`);
+
+    await q.query(`ALTER TABLE usuarios ALTER COLUMN password_hash DROP NOT NULL`);
+    await q.query(`ALTER TABLE usuarios ADD COLUMN foto_url varchar(500) NULL`);
+    await q.query(`ALTER TABLE sesiones ADD COLUMN proveedor varchar(40) NOT NULL DEFAULT 'local'`);
+    await q.query(`ALTER TABLE identidades_externas ADD COLUMN nombre varchar(160) NULL`);
+    await q.query(`ALTER TABLE identidades_externas ADD COLUMN ultimo_acceso timestamptz NULL`);
+    await q.query(`CREATE INDEX ix_identidades_usuario ON identidades_externas (usuario_id)`);
+
+    await q.query(`
+      CREATE TABLE oauth_solicitudes (
+        estado      varchar(64)  PRIMARY KEY,
+        proveedor   varchar(40)  NOT NULL,
+        verificador varchar(128) NOT NULL,
+        nonce       varchar(64)  NOT NULL,
+        expira_en   timestamptz  NOT NULL
+      )`);
+    await q.query(`CREATE INDEX ix_oauth_solicitudes_expira ON oauth_solicitudes (expira_en)`);
+
+    await q.query(`
+      CREATE TABLE codigos_acceso (
+        codigo_hash char(64)    PRIMARY KEY,
+        usuario_id  int         NOT NULL REFERENCES usuarios (id) ON DELETE CASCADE,
+        proveedor   varchar(40) NOT NULL,
+        expira_en   timestamptz NOT NULL
+      )`);
+    await q.query(`CREATE INDEX ix_codigos_acceso_expira ON codigos_acceso (expira_en)`);
+  }
+
+  async down(q: QueryRunner): Promise<void> {
+    await q.query(`DROP TABLE IF EXISTS codigos_acceso`);
+    await q.query(`DROP TABLE IF EXISTS oauth_solicitudes`);
+    await q.query(`DROP INDEX IF EXISTS ix_identidades_usuario`);
+    await q.query(`ALTER TABLE identidades_externas DROP COLUMN IF EXISTS ultimo_acceso`);
+    await q.query(`ALTER TABLE identidades_externas DROP COLUMN IF EXISTS nombre`);
+    await q.query(`ALTER TABLE sesiones DROP COLUMN IF EXISTS proveedor`);
+    await q.query(`ALTER TABLE usuarios DROP COLUMN IF EXISTS foto_url`);
+    // Las cuentas externas no tienen contraseña: no se puede volver a exigirla sin perderlas.
+    await q.query(`UPDATE roles SET codigo = 'Administrador' WHERE codigo = 'ADMIN'`);
+    await q.query(`UPDATE roles SET codigo = 'Operador' WHERE codigo = 'OPERATOR'`);
+    await q.query(`UPDATE roles SET codigo = 'Consulta' WHERE codigo = 'VIEWER'`);
+  }
+}
+
+export const MIGRACIONES = [EsquemaInicial1761091200000, AutenticacionExterna1762387200000];

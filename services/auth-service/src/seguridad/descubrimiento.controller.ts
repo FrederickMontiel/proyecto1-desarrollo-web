@@ -6,8 +6,8 @@ import { LlavesService } from './llaves.service.js';
 
 /**
  * Documentos de descubrimiento con el formato de OpenID Connect. Los consume el gateway
- * (y en adelante cualquier servicio) para obtener la llave pública. Cuando en la Fase 4
- * se use un proveedor externo, los validadores solo cambian la URL de estos documentos.
+ * y todos los microservicios para obtener la llave pública. Aunque el usuario entre con
+ * Google o GitHub, el token que circula es siempre el de este servicio.
  *
  * No se exponen por el gateway: los servicios los leen dentro de la red interna.
  */
@@ -36,7 +36,7 @@ export class DescubrimientoController {
       response_types_supported: ['token'],
       subject_types_supported: ['public'],
       id_token_signing_alg_values_supported: ['RS256'],
-      claims_supported: ['sub', 'email', 'name', 'role', 'permissions'],
+      claims_supported: ['sub', 'email', 'name', 'roles', 'permissions', 'provider'],
     };
   }
 }

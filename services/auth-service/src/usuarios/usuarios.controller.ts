@@ -13,8 +13,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Contexto, RequierePermisos, type ContextoPeticion } from '../comun/decoradores.js';
-import { PERMISOS } from './catalogo.js';
+import { Contexto, RequierePermisos, RequiereRoles, type ContextoPeticion } from '../comun/decoradores.js';
+import { CodigoRol, NOMBRES_ROL, PERMISOS } from './catalogo.js';
 import {
   ActualizarUsuarioDto,
   CambiarEstadoDto,
@@ -27,6 +27,7 @@ import { UsuariosService } from './usuarios.service.js';
 
 /** Administración de cuentas. No hay auto-registro: las altas las hace un administrador. */
 @Controller('api/auth')
+@RequiereRoles(CodigoRol.Admin)
 @RequierePermisos(PERMISOS.usuariosAdministrar.codigo)
 export class UsuariosController {
   constructor(
@@ -76,6 +77,7 @@ export class UsuariosController {
     const roles = await this.roles.find({ order: { id: 'ASC' } });
     return roles.map((r) => ({
       codigo: r.codigo,
+      nombre: NOMBRES_ROL[r.codigo as CodigoRol] ?? r.codigo,
       descripcion: r.descripcion,
       permisos: r.permisos.map((p) => ({ codigo: p.codigo, descripcion: p.descripcion })),
     }));

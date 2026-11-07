@@ -6,8 +6,9 @@ export interface Identidad {
   id: number;
   email: string;
   nombre: string;
-  rol: string;
+  roles: string[];
   permisos: string[];
+  proveedor: string;
   jti: string;
 }
 
@@ -22,12 +23,16 @@ export type PeticionAutenticada = Request & { identidad?: Identidad };
 
 export const CLAVE_PUBLICO = 'publico';
 export const CLAVE_PERMISOS = 'permisos';
+export const CLAVE_ROLES = 'roles';
 
 /** La ruta no exige token (login, JWKS, sondas de salud). */
 export const Publico = () => SetMetadata(CLAVE_PUBLICO, true);
 
 /** La ruta exige todos los permisos indicados. */
 export const RequierePermisos = (...permisos: string[]) => SetMetadata(CLAVE_PERMISOS, permisos);
+
+/** La ruta exige que el token tenga al menos uno de los roles indicados (ADMIN, OPERATOR, VIEWER). */
+export const RequiereRoles = (...roles: string[]) => SetMetadata(CLAVE_ROLES, roles);
 
 /** Inyecta en el controlador la identidad del usuario autenticado. */
 export const UsuarioActual = createParamDecorator(

@@ -53,7 +53,7 @@ export class SemillaService implements OnApplicationBootstrap {
       return;
     }
 
-    const rol = await this.db.getRepository(Rol).findOneByOrFail({ codigo: CodigoRol.Administrador });
+    const rol = await this.db.getRepository(Rol).findOneByOrFail({ codigo: CodigoRol.Admin });
     await repoUsuarios.save(
       repoUsuarios.create({
         nombreCompleto: nombre,

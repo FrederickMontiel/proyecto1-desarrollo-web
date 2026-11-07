@@ -32,7 +32,14 @@ function escribirLlave(bits = 2048): string {
   return archivo;
 }
 
-const SUJETO = { id: 7, email: 'ana@ejemplo.org', nombre: 'Ana', rol: 'Operador', permisos: ['alertas:atender'] };
+const SUJETO = {
+  id: 7,
+  email: 'ana@ejemplo.org',
+  nombre: 'Ana',
+  roles: ['OPERATOR'],
+  permisos: ['alertas:atender'],
+  proveedor: 'google',
+};
 
 describe('TokensService', () => {
   const config = crearConfig(escribirLlave());
@@ -46,8 +53,9 @@ describe('TokensService', () => {
     expect(claims).toMatchObject({
       sub: '7',
       email: 'ana@ejemplo.org',
-      role: 'Operador',
+      roles: ['OPERATOR'],
       permissions: ['alertas:atender'],
+      provider: 'google',
       iss: 'swmatrc-auth',
       aud: 'swmatrc-web',
       jti: emitido.jti,
@@ -66,7 +74,7 @@ describe('TokensService', () => {
     await expect(tokens.verificar(deServicio.token, 'web')).rejects.toThrow();
     await expect(tokens.verificar(deServicio.token, 'interna')).resolves.toMatchObject({
       sub: 'svc:report-service',
-      role: 'Servicio',
+      roles: ['SERVICE'],
     });
   });
 
@@ -81,7 +89,7 @@ describe('TokensService', () => {
     const { token } = await tokens.emitirUsuario(SUJETO);
     const [cabecera, carga, firma] = token.split('.');
     const cargaAlterada = Buffer.from(
-      JSON.stringify({ ...JSON.parse(Buffer.from(carga, 'base64url').toString()), role: 'Administrador' }),
+      JSON.stringify({ ...JSON.parse(Buffer.from(carga, 'base64url').toString()), roles: ['ADMIN'] }),
     ).toString('base64url');
 
     await expect(tokens.verificar(`${cabecera}.${cargaAlterada}.${firma}`, 'web')).rejects.toThrow();

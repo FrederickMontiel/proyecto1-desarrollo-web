@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { jwtVerify, SignJWT, type JWTPayload } from 'jose';
 import { randomUUID } from 'node:crypto';
 import type { Configuracion } from '../configuracion.js';
+import { ROL_SERVICIO } from '../usuarios/catalogo.js';
 import { LlavesService } from './llaves.service.js';
 
 /** Datos del usuario que viajan dentro del token. */
@@ -10,8 +11,10 @@ export interface SujetoToken {
   id: number;
   email: string;
   nombre: string;
-  rol: string;
+  roles: string[];
   permisos: string[];
+  /** Con qué se autenticó: `local`, `google`, `github`… */
+  proveedor: string;
 }
 
 export interface TokenEmitido {
@@ -25,12 +28,11 @@ export interface TokenEmitido {
 export interface ClaimsSwmatrc extends JWTPayload {
   email?: string;
   name?: string;
-  role?: string;
+  roles?: string[];
   permissions?: string[];
+  provider?: string;
 }
 
-/** Rol con el que se identifican los tokens de servicio a servicio. */
-export const ROL_SERVICIO = 'Servicio';
 export const PERMISO_INTERNO = 'interno';
 
 @Injectable()
@@ -45,16 +47,23 @@ export class TokensService {
   }
 
   /**
-   * Token de acceso de un usuario. Los nombres de los claims son los estándar de OIDC
-   * (`sub`, `email`, `name`) para que en la Fase 4 un proveedor externo encaje sin cambios
-   * en los validadores.
+   * Token de acceso de un usuario. Es el mismo sin importar si entró con contraseña, Google
+   * o GitHub: los microservicios solo confían en este emisor, nunca en el token del proveedor.
+   * Claims como en la sección 6 del documento: `sub`, `email`, `name`, `roles`, `provider`,
+   * `iss`, `aud`, `exp`, más `permissions`, `iat` y `jti`.
    */
   emitirUsuario(sujeto: SujetoToken): Promise<TokenEmitido> {
     return this.firmar(
       String(sujeto.id),
       this.jwt.audiencia,
       this.jwt.minutosVigencia,
-      { email: sujeto.email, name: sujeto.nombre, role: sujeto.rol, permissions: sujeto.permisos },
+      {
+        email: sujeto.email,
+        name: sujeto.nombre,
+        roles: sujeto.roles,
+        permissions: sujeto.permisos,
+        provider: sujeto.proveedor,
+      },
     );
   }
 
@@ -64,7 +73,7 @@ export class TokensService {
       `svc:${clienteId}`,
       this.jwt.audienciaInterna,
       this.jwt.minutosVigenciaServicio,
-      { name: clienteId, role: ROL_SERVICIO, permissions: [PERMISO_INTERNO] },
+      { name: clienteId, roles: [ROL_SERVICIO], permissions: [PERMISO_INTERNO], provider: 'internal' },
     );
   }
 
