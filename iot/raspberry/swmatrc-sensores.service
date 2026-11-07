@@ -1,0 +1,20 @@
+# Servicio systemd: arranca la estación al encender la Raspberry y la reinicia si falla.
+#   sudo cp swmatrc-sensores.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now swmatrc-sensores
+#   journalctl -u swmatrc-sensores -f
+[Unit]
+Description=SWMATRC - estacion de sensores reales (DHT11 + SW-420)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=admin
+Group=gpio
+WorkingDirectory=/home/admin/swmatrc
+EnvironmentFile=/home/admin/swmatrc/sensores.env
+ExecStart=/home/admin/sensores-env/bin/python -u /home/admin/swmatrc/sensores_iot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

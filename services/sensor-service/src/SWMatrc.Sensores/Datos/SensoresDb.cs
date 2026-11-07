@@ -31,6 +31,7 @@ public sealed class SensoresDb(DbContextOptions<SensoresDb> opciones) : DbContex
         s.Property(x => x.ValorMaximo).HasPrecision(10, 3);
         s.Property(x => x.VariacionMaxima).HasPrecision(10, 3);
         s.Property(x => x.ValorActual).HasPrecision(10, 3);
+        s.Property(x => x.ValorRecibido).HasPrecision(10, 3);
         s.HasIndex(x => x.Codigo).IsUnique();
         s.HasIndex(x => new { x.ComunidadId, x.Tipo });
 

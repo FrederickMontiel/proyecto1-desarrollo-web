@@ -3,6 +3,7 @@ using SWMatrc.Comun;
 using SWMatrc.Sensores.Aplicacion;
 using SWMatrc.Sensores.Datos;
 using SWMatrc.Sensores.Integracion;
+using SWMatrc.Sensores.Iot;
 using SWMatrc.Sensores.Simulacion;
 using SWMatrc.Sensores.TiempoReal;
 
@@ -22,13 +23,21 @@ builder.Services.AddDbContext<SensoresDb>(o => o.UseSqlServer(
 
 builder.Services.AddHealthChecks().AddDbContextCheck<SensoresDb>("sqlserver", tags: [ExtensionesWeb.EtiquetaListo]);
 
-builder.Services.AddSignalR(o =>
+var signalR = builder.Services.AddSignalR(o =>
 {
     // Latido frecuente: en un sistema de alerta temprana un canal caído sin avisar es
     // peor que no tenerlo.
     o.KeepAliveInterval = TimeSpan.FromSeconds(10);
     o.ClientTimeoutInterval = TimeSpan.FromSeconds(30);
 }).AddJsonProtocol(o => Json.Configurar(o.PayloadSerializerOptions));
+
+// Con varias réplicas (Kubernetes), cada navegador está conectado a un pod distinto. Redis
+// reparte los mensajes del hub entre todos los pods: un evento emitido por el simulador o
+// por /internal/notify llega a cualquier cliente. Sin Redis (Compose, una réplica) no hace falta.
+var redis = builder.Configuration.GetConnectionString("Redis");
+if (!string.IsNullOrWhiteSpace(redis))
+    signalR.AddStackExchangeRedis(redis, o => o.Configuration.ChannelPrefix =
+        StackExchange.Redis.RedisChannel.Literal("swmatrc-sensores"));
 
 builder.Services.Configure<OpcionesSimulacion>(builder.Configuration.GetSection(OpcionesSimulacion.Seccion));
 
@@ -42,6 +51,11 @@ builder.Services.AddScoped<IClienteAlertas>(sp => sp.GetRequiredService<ClienteA
 builder.Services.AddSingleton<ISimuladorClima, SimuladorClima>();
 builder.Services.AddSingleton<INotificador, Notificador>();
 builder.Services.AddScoped<ServicioMonitoreo>();
+
+// Sensores físicos (Raspberry Pi): dispositivos autorizados y recepción de sus lecturas.
+builder.Services.Configure<OpcionesIot>(builder.Configuration.GetSection(OpcionesIot.Seccion));
+builder.Services.AddSingleton<RegistroIot>();
+builder.Services.AddScoped<ServicioIot>();
 builder.Services.AddScoped<ServicioSensores>();
 builder.Services.AddScoped<ServicioLecturas>();
 builder.Services.AddHostedService<ServicioSimulacion>();

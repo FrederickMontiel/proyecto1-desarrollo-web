@@ -4,6 +4,7 @@ using SWMatrc.Comun;
 using SWMatrc.Sensores.Datos;
 using SWMatrc.Sensores.Dominio;
 using SWMatrc.Sensores.Integracion;
+using SWMatrc.Sensores.Iot;
 using SWMatrc.Sensores.Simulacion;
 using SWMatrc.Sensores.TiempoReal;
 
@@ -44,6 +45,7 @@ public sealed class ServicioMonitoreo(
     INotificador notificador,
     IClienteAuditoria auditoria,
     IOptions<OpcionesSimulacion> opciones,
+    RegistroIot iot,
     ILogger<ServicioMonitoreo> logger)
 {
     private readonly OpcionesSimulacion _opciones = opciones.Value;
@@ -73,13 +75,15 @@ public sealed class ServicioMonitoreo(
 
         foreach (var sensor in sensores.Where(s => s.DebeReportar && EstaActiva(catalogo, s.ComunidadId)))
         {
-            var valor = simulador.SiguienteValor(sensor);
+            // Los sensores físicos no se simulan: su valor es el último que mandó el dispositivo.
+            var fisico = iot.EsFisico(sensor.Codigo);
+            var (valor, momento) = fisico ? ValorFisico(sensor) : (simulador.SiguienteValor(sensor), ahora);
 
             if (valor is null)
             {
                 // El instrumento no respondió. No se inventa una lectura: si el silencio se
                 // prolonga, el sensor pasa a "sin señal" y deja de sostener la evaluación.
-                if (MarcarSinSenalSiProcede(sensor, ahora))
+                if (MarcarSinSenalSiProcede(sensor, ahora, fisico ? iot.ToleranciaSinSenal : _opciones.ToleranciaSinSenal))
                     cambiosDeEstado.Add(sensor);
                 continue;
             }
@@ -92,7 +96,7 @@ public sealed class ServicioMonitoreo(
             }
 
             sensor.ValorActual = valor.Value;
-            sensor.UltimaLectura = ahora;
+            sensor.UltimaLectura = momento;
 
             var lectura = new Lectura
             {
@@ -100,7 +104,7 @@ public sealed class ServicioMonitoreo(
                 Valor = valor.Value,
                 UnidadMedida = sensor.UnidadMedida,
                 EstadoSensor = sensor.Estado,
-                FechaHora = ahora
+                FechaHora = momento
             };
             db.Lecturas.Add(lectura);
             nuevas.Add((lectura, sensor));
@@ -123,17 +127,28 @@ public sealed class ServicioMonitoreo(
     }
 
     /// <summary>
+    /// Valor real pendiente de un sensor físico: el que mandó el dispositivo después de la
+    /// última lectura registrada. Si no llegó nada nuevo, no hay lectura en este ciclo (y, si
+    /// el silencio se alarga, el sensor queda "sin señal"). La lectura lleva la hora en que
+    /// el valor llegó, no la del ciclo.
+    /// </summary>
+    private static (decimal? Valor, DateTime Momento) ValorFisico(Sensor sensor) =>
+        sensor is { ValorRecibido: { } valor, RecibidoEn: { } recibido } && recibido > (sensor.UltimaLectura ?? DateTime.MinValue)
+            ? (valor, recibido)
+            : (null, default);
+
+    /// <summary>
     /// Un sensor <i>inactivo</i> lo apagó alguien a propósito; uno <i>sin señal</i> está
     /// averiado. Mostrar el segundo con su última lectura congelada daría una falsa
     /// sensación de normalidad justo donde el sistema ya no sabe lo que ocurre.
     /// </summary>
-    private bool MarcarSinSenalSiProcede(Sensor sensor, DateTime ahora)
+    private bool MarcarSinSenalSiProcede(Sensor sensor, DateTime ahora, TimeSpan tolerancia)
     {
         if (sensor.Estado == EstadoSensor.SinSenal)
             return false;
 
         var silencio = ahora - (sensor.UltimaLectura ?? sensor.FechaCreacion);
-        if (silencio < _opciones.ToleranciaSinSenal)
+        if (silencio < tolerancia)
             return false;
 
         sensor.Estado = EstadoSensor.SinSenal;

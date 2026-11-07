@@ -84,6 +84,15 @@ public class Sensor
     public DateTime? UltimaLectura { get; set; }
 
     /// <summary>
+    /// Último valor que mandó un dispositivo físico (Raspberry Pi) y cuándo llegó. El ciclo de
+    /// adquisición lo convierte en lectura si es más nuevo que <see cref="UltimaLectura"/>.
+    /// Nulo en los sensores simulados.
+    /// </summary>
+    public decimal? ValorRecibido { get; set; }
+
+    public DateTime? RecibidoEn { get; set; }
+
+    /// <summary>
     /// Color de la última lectura según los umbrales del Alert Service. Nulo si Alert no
     /// respondió en la última evaluación: el sistema no inventa un "verde".
     /// </summary>

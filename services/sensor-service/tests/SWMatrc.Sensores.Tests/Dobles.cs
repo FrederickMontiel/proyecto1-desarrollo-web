@@ -1,3 +1,4 @@
+using SWMatrc.Sensores.Iot;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -29,8 +30,18 @@ internal sealed class Escenario
     public AuditoriaEnMemoria Auditoria { get; } = new();
     public OpcionesSimulacion Opciones { get; } = new() { IntervaloSegundos = 3, CiclosToleranciaSinSenal = 3 };
 
+    public OpcionesIot OpcionesIot { get; } = new()
+    {
+        Dispositivos = [new DispositivoIot { Id = "raspberry-01", Llave = "llave-de-prueba-muy-larga", Sensores = "RPI-TEMP-01,RPI-HUM-01" }],
+        ToleranciaSinSenalSegundos = 30
+    };
+
+    public RegistroIot RegistroIot() => new(Options.Create(OpcionesIot));
+
+    public ServicioIot Iot() => new(Db, NullLogger<ServicioIot>.Instance);
+
     public ServicioMonitoreo Monitoreo() => new(Db, Simulador, Comunidades, Alertas, Notificador, Auditoria,
-        Options.Create(Opciones), NullLogger<ServicioMonitoreo>.Instance);
+        Options.Create(Opciones), RegistroIot(), NullLogger<ServicioMonitoreo>.Instance);
 
     public ServicioSensores Sensores() => new(Db, Comunidades, Monitoreo(), Notificador, Auditoria);
 

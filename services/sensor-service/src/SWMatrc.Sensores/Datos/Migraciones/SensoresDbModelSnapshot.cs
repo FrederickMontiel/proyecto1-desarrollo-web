@@ -110,6 +110,9 @@ namespace SWMatrc.Sensores.Datos.Migraciones
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
+                    b.Property<DateTime?>("RecibidoEn")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("Tipo")
                         .HasColumnType("int");
 
@@ -134,6 +137,10 @@ namespace SWMatrc.Sensores.Datos.Migraciones
                         .HasColumnType("decimal(10,3)");
 
                     b.Property<decimal>("ValorMinimo")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("decimal(10,3)");
+
+                    b.Property<decimal?>("ValorRecibido")
                         .HasPrecision(10, 3)
                         .HasColumnType("decimal(10,3)");
 
