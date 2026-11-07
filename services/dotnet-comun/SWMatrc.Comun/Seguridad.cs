@@ -32,6 +32,29 @@ public static class Permisos
         AlertasLeer, AlertasAtender, ReglasEditar, ReportesGenerar, ReportesDescargar,
         AuditoriaLeer, UsuariosAdministrar, SistemaAdministrar
     ];
+
+    /// <summary>
+    /// Permisos que además exigen el rol ADMIN (RNF-OAUTH-03). Misma lista que
+    /// <c>PERMISOS_ADMINISTRATIVOS</c> en auth-service/src/usuarios/catalogo.ts.
+    /// </summary>
+    public static readonly IReadOnlySet<string> Administrativos = new HashSet<string>
+    {
+        ComunidadesEditar, SensoresEditar, ReglasEditar, ReportesDescargar,
+        AuditoriaLeer, UsuariosAdministrar, SistemaAdministrar
+    };
+}
+
+/// <summary>Roles del claim <c>roles</c> (sección 15 del documento de la Fase 4).</summary>
+public static class Roles
+{
+    public const string Admin = "ADMIN";
+    public const string Operator = "OPERATOR";
+    public const string Viewer = "VIEWER";
+
+    /// <summary>Solo lo llevan los tokens de servicio a servicio.</summary>
+    public const string Servicio = "SERVICE";
+
+    internal static readonly string[] DeUsuario = [Admin, Operator, Viewer];
 }
 
 /// <summary>Nombres de los esquemas y políticas de autorización.</summary>
@@ -46,8 +69,12 @@ public static class Politicas
     /// <summary>Política de las rutas <c>/internal</c>: solo otros microservicios.</summary>
     public const string SoloServicios = "solo-servicios";
 
+    /// <summary>Política que exige el rol ADMIN, para rutas administrativas sin permiso propio.</summary>
+    public const string SoloAdministradores = "solo-administradores";
+
     internal const string PermisoInterno = "interno";
     internal const string ClaimPermisos = "permissions";
+    internal const string ClaimRoles = "roles";
 }
 
 public static class ExtensionesSeguridad
@@ -73,7 +100,7 @@ public static class ExtensionesSeguridad
         {
             o.MetadataAddress = opciones.UrlMetadatos;
             o.RequireHttpsMetadata = opciones.RequiereHttps;
-            // Los claims se leen con su nombre del JWT (sub, role, permissions), sin la
+            // Los claims se leen con su nombre del JWT (sub, roles, permissions), sin la
             // traducción a los URI largos de WS-Federation.
             o.MapInboundClaims = false;
             o.TokenValidationParameters = new TokenValidationParameters
@@ -86,7 +113,8 @@ public static class ExtensionesSeguridad
                 ValidAudience = audiencia,
                 ValidAlgorithms = [SecurityAlgorithms.RsaSha256],
                 NameClaimType = "email",
-                RoleClaimType = "role",
+                // El arreglo "roles" llega como un claim por elemento: User.IsInRole("ADMIN") funciona.
+                RoleClaimType = Politicas.ClaimRoles,
                 ClockSkew = TimeSpan.FromMinutes(1)
             };
 
@@ -112,22 +140,30 @@ public static class ExtensionesSeguridad
 
         services.AddAuthorization(autorizacion =>
         {
-            // Sin [Authorize] explícito, toda ruta exige al menos un token de usuario válido.
-            autorizacion.FallbackPolicy = new AuthorizationPolicyBuilder(Politicas.EsquemaUsuario)
+            // Un token de usuario siempre trae al menos un rol conocido; si no, no es de este sistema.
+            AuthorizationPolicyBuilder Usuario() => new AuthorizationPolicyBuilder(Politicas.EsquemaUsuario)
                 .RequireAuthenticatedUser()
-                .Build();
+                .RequireRole(Roles.DeUsuario);
+
+            // Sin [Authorize] explícito, toda ruta exige al menos un token de usuario válido.
+            autorizacion.FallbackPolicy = Usuario().Build();
+            autorizacion.DefaultPolicy = Usuario().Build();
 
             foreach (var permiso in Permisos.Todos)
             {
-                autorizacion.AddPolicy(permiso, p => p
-                    .AddAuthenticationSchemes(Politicas.EsquemaUsuario)
-                    .RequireAuthenticatedUser()
-                    .RequireClaim(Politicas.ClaimPermisos, permiso));
+                var politica = Usuario().RequireClaim(Politicas.ClaimPermisos, permiso);
+                // RNF-OAUTH-03: las operaciones administrativas exigen además el rol ADMIN.
+                if (Permisos.Administrativos.Contains(permiso))
+                    politica.RequireRole(Roles.Admin);
+                autorizacion.AddPolicy(permiso, politica.Build());
             }
+
+            autorizacion.AddPolicy(Politicas.SoloAdministradores, Usuario().RequireRole(Roles.Admin).Build());
 
             autorizacion.AddPolicy(Politicas.SoloServicios, p => p
                 .AddAuthenticationSchemes(Politicas.EsquemaServicio)
                 .RequireAuthenticatedUser()
+                .RequireRole(Roles.Servicio)
                 .RequireClaim(Politicas.ClaimPermisos, Politicas.PermisoInterno));
         });
 
@@ -147,7 +183,13 @@ public sealed class UsuarioActual(IHttpContextAccessor accesor)
 
     public string Email => Principal?.FindFirst("email")?.Value ?? "sistema";
 
-    public string? Rol => Principal?.FindFirst("role")?.Value;
+    public IReadOnlyList<string> Roles =>
+        Principal?.FindAll(Politicas.ClaimRoles).Select(c => c.Value).ToList() ?? [];
+
+    public bool EsAdministrador => Principal?.IsInRole(SWMatrc.Comun.Roles.Admin) ?? false;
+
+    /// <summary>Con qué se autenticó el usuario: <c>local</c>, <c>google</c>, <c>github</c>…</summary>
+    public string? Proveedor => Principal?.FindFirst("provider")?.Value;
 
     public bool TienePermiso(string permiso) => Principal?.HasClaim(Politicas.ClaimPermisos, permiso) ?? false;
 

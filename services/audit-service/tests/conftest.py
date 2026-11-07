@@ -110,13 +110,14 @@ def cliente(config, auth_simulado, repositorio):
 def emitir(llave_privada):
     """Firma tokens como lo haría el Auth Service, con la posibilidad de alterar cualquier claim."""
 
-    def _emitir(*, audiencia="swmatrc-web", permisos=(), rol="Administrador", sub="1", llave=None, **extra):
+    def _emitir(*, audiencia="swmatrc-web", permisos=(), roles=("ADMIN",), sub="1", llave=None, **extra):
         ahora = int(time.time())
         claims = {
             "sub": sub,
             "email": "admin@swmatrc.local",
             "name": "Admin",
-            "role": rol,
+            "roles": list(roles),
+            "provider": "local",
             "permissions": list(permisos),
             "iss": "swmatrc-auth",
             "aud": audiencia,

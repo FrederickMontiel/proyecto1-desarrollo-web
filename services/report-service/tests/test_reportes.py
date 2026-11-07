@@ -52,6 +52,17 @@ def test_rf_rep_10_solo_un_administrador_descarga(cliente, token, auditoria):
     assert "ReporteDescargado" in auditoria.acciones
 
 
+def test_descarga_exige_rol_admin_aunque_tenga_el_permiso(cliente, token):
+    """RNF-OAUTH-03: el permiso de descarga sin el rol ADMIN no basta."""
+    rid = cliente.post("/api/reports", json={"type": "SENSORS"}, headers=token(ADMIN)).json()["reportId"]
+    esperar(cliente, rid, token(ADMIN))
+    assert cliente.get(f"/api/reports/{rid}/download", headers=token(ADMIN, roles=["OPERATOR"])).status_code == 403
+
+
+def test_token_sin_rol_del_sistema_se_rechaza(cliente, token):
+    assert cliente.get("/api/reports", headers=token(OPERADOR, roles=[])).status_code == 401
+
+
 def test_sin_permiso_de_generar_no_se_solicita(cliente, token):
     assert cliente.post("/api/reports", json={"type": "SENSORS"}, headers=token(CONSULTA)).status_code == 403
 

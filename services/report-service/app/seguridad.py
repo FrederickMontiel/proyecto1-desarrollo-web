@@ -20,6 +20,21 @@ from fastapi import Depends, HTTPException, Request, status
 from .configuracion import Configuracion, obtener_configuracion
 
 PERMISO_INTERNO = "interno"
+ROL_ADMIN = "ADMIN"
+ROL_SERVICIO = "SERVICE"
+ROLES_USUARIO = frozenset({"ADMIN", "OPERATOR", "VIEWER"})
+
+# RNF-OAUTH-03: permisos que además exigen el rol ADMIN. Misma lista que
+# PERMISOS_ADMINISTRATIVOS en auth-service/src/usuarios/catalogo.ts.
+PERMISOS_ADMINISTRATIVOS = frozenset({
+    "comunidades:editar",
+    "sensores:editar",
+    "reglas:editar",
+    "reportes:descargar",
+    "auditoria:leer",
+    "usuarios:administrar",
+    "sistema:administrar",
+})
 
 
 @dataclass(frozen=True)
@@ -27,8 +42,9 @@ class Identidad:
     sujeto: str
     email: str
     nombre: str
-    rol: str
+    roles: list[str] = field(default_factory=list)
     permisos: list[str] = field(default_factory=list)
+    proveedor: str = "local"
 
     def tiene(self, permiso: str) -> bool:
         return permiso in self.permisos
@@ -113,12 +129,16 @@ async def _identidad(
     except (jwt.PyJWTError, httpx.HTTPError):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "El token no es válido o ya venció.") from None
 
+    roles = claims.get("roles", [])
+    if not isinstance(roles, list):
+        roles = []
     return Identidad(
         sujeto=str(claims["sub"]),
         email=claims.get("email", ""),
         nombre=claims.get("name", ""),
-        rol=claims.get("role", ""),
+        roles=[str(r) for r in roles],
         permisos=list(claims.get("permissions", [])),
+        proveedor=claims.get("provider", "local"),
     )
 
 
@@ -134,9 +154,17 @@ def requiere_permiso(*permisos: str):
         validador: Annotated[ValidadorJwt, Depends(_validador)],
         config: Annotated[Configuracion, Depends(obtener_configuracion)],
     ) -> Identidad:
+        requeridos = permisos
         identidad = await _identidad(request, config.jwt_audiencia, validador)
+        # Un token de usuario siempre trae al menos un rol del sistema.
+        if not ROLES_USUARIO.intersection(identidad.roles):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "El token no trae un rol válido.")
         if not any(p in identidad.permisos for p in permisos):
             raise HTTPException(status.HTTP_403_FORBIDDEN, "No tiene permisos para realizar esta operación.")
+        # Si lo único que habilita la operación es un permiso administrativo, se exige ADMIN.
+        concedidos = [p for p in requeridos if p in identidad.permisos]
+        if all(p in PERMISOS_ADMINISTRATIVOS for p in concedidos) and ROL_ADMIN not in identidad.roles:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "La operación está reservada al rol ADMIN.")
         return identidad
 
     return dependencia
@@ -149,6 +177,6 @@ async def solo_servicios(
 ) -> Identidad:
     """Dependencia: token de servicio (audiencia interna). Un token de usuario no sirve aquí."""
     identidad = await _identidad(request, config.jwt_audiencia_interna, validador)
-    if PERMISO_INTERNO not in identidad.permisos:
+    if PERMISO_INTERNO not in identidad.permisos or ROL_SERVICIO not in identidad.roles:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "La ruta es exclusiva de los servicios internos.")
     return identidad

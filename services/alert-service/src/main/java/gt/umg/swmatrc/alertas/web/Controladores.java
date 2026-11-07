@@ -55,7 +55,7 @@ public final class Controladores {
 
     private static final String LEER = "hasAuthority('PERM_alertas:leer')";
     private static final String ATENDER = "hasAuthority('PERM_alertas:atender')";
-    private static final String CONFIGURAR = "hasAuthority('PERM_reglas:editar')";
+    private static final String CONFIGURAR = "hasAuthority('PERM_reglas:editar') and hasRole('ADMIN')";
 
     // ===============================================================================
 

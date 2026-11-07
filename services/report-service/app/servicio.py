@@ -57,7 +57,7 @@ class Contexto:
     def es_administrador(self) -> bool:
         # RF-REP-10: la descarga es exclusiva de los administradores; quien puede
         # descargar puede ver el historial de todos.
-        return self.identidad.tiene(PERMISO_DESCARGAR)
+        return self.identidad.tiene(PERMISO_DESCARGAR) and "ADMIN" in self.identidad.roles
 
 
 class ServicioReportes:

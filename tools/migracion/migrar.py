@@ -37,7 +37,8 @@ from pymongo import MongoClient
 
 TIPOS_SENSOR = {1: "Temperatura", 2: "Humedad", 3: "Viento", 4: "Lluvia", 5: "NivelRio",
                 6: "NivelReservorio", 7: "Humo", 8: "Otro"}
-ROLES = {0: "Consulta", 1: "Operador", 2: "Administrador"}
+# Rol numérico de la Fase 2 → código de rol de la Fase 4 (ADMIN / OPERATOR / VIEWER).
+ROLES = {0: "VIEWER", 1: "OPERATOR", 2: "ADMIN"}
 LEGADO = os.environ.get("MSSQL_DATABASE_LEGADO", "SwmatrcDb")
 
 

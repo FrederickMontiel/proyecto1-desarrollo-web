@@ -248,9 +248,11 @@ CONSULTA = ["comunidades:leer", "sensores:leer", "alertas:leer"]
 
 @pytest.fixture
 def token(llave_privada):
-    def _token(permisos, sub="1", email="admin@swmatrc.local", nombre="Administrador", **extra):
+    def _token(permisos, sub="1", email="admin@swmatrc.local", nombre="Administrador", roles=None, **extra):
         ahora = int(time.time())
-        claims = {"sub": sub, "email": email, "name": nombre, "role": "x", "permissions": permisos,
+        if roles is None:
+            roles = ["ADMIN"] if "reportes:descargar" in permisos else ["OPERATOR"] if "reportes:generar" in permisos else ["VIEWER"]
+        claims = {"sub": sub, "email": email, "name": nombre, "roles": roles, "permissions": permisos, "provider": "local",
                   "iss": "swmatrc-auth", "aud": "swmatrc-web", "iat": ahora, "exp": ahora + 600, "jti": str(uuid.uuid4()), **extra}
         return {"authorization": "Bearer " + jwt.encode(claims, llave_privada, algorithm="RS256", headers={"kid": KID})}
 

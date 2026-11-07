@@ -1,5 +1,5 @@
 """
-Pruebas de integración de punta a punta de SWMATRC (Fase 3).
+Pruebas de integración de punta a punta de SWMATRC (Fases 3 y 4).
 
 Recorre los seis microservicios a través del API Gateway, como lo hará el frontend:
 autenticación, permisos, comunidades, sensores, simulación, evaluación de alertas, tiempo
@@ -91,6 +91,27 @@ def http(metodo: str, ruta: str, token: str | None = None, cuerpo=None, cabecera
             return Respuesta(r.status, dict(r.headers), r.read())
     except urllib.error.HTTPError as e:
         return Respuesta(e.code, dict(e.headers), e.read())
+
+
+class _SinRedireccion(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_SIN_REDIRECCION = urllib.request.build_opener(_SinRedireccion)
+
+
+def http_sin_seguir(ruta: str) -> Respuesta:
+    """GET que no sigue redirecciones: para ver a dónde manda el flujo OAuth."""
+    try:
+        with _SIN_REDIRECCION.open(urllib.request.Request(GATEWAY + ruta), timeout=30) as r:
+            return Respuesta(r.status, dict(r.headers), r.read())
+    except urllib.error.HTTPError as e:
+        return Respuesta(e.code, dict(e.headers), e.read())
+
+
+# Clave interna de las pruebas → código de rol de la Fase 4.
+CODIGO_ROL = {"Operador": "OPERATOR", "Consulta": "VIEWER"}
 
 
 def login(email: str, password: str) -> Respuesta:
@@ -209,21 +230,59 @@ def auth_token_rs256():
     h, p = decodificar(cabecera), decodificar(carga)
     assert h["alg"] == "RS256" and h.get("kid"), h
     assert p["iss"] == "swmatrc-auth" and p["aud"] == "swmatrc-web", p
-    assert p["role"] == "Administrador" and "reportes:descargar" in p["permissions"], p
+    assert p["roles"] == ["ADMIN"] and p["provider"] == "local" and "reportes:descargar" in p["permissions"], p
 
 
 @prueba("Auth")
 def auth_me():
     """GET /api/auth/me devuelve el perfil con permisos"""
     yo = esperado(http("GET", "/api/auth/me", token=C["admin"]), 200).json
-    assert yo["email"] == ADMIN_EMAIL and yo["rol"] == "Administrador" and len(yo["permisos"]) >= 13, yo
+    assert yo["email"] == ADMIN_EMAIL and yo["rol"] == "ADMIN" and len(yo["permisos"]) >= 13, yo
 
 
 @prueba("Auth")
 def auth_roles():
-    """Catálogo de roles: Consulta, Operador, Administrador"""
+    """Catálogo de roles: VIEWER, OPERATOR, ADMIN"""
     roles = {r["codigo"]: len(r["permisos"]) for r in esperado(http("GET", "/api/auth/roles", token=C["admin"]), 200).json}
-    assert set(roles) == {"Consulta", "Operador", "Administrador"} and roles["Consulta"] < roles["Operador"] < roles["Administrador"], roles
+    assert set(roles) == {"VIEWER", "OPERATOR", "ADMIN"} and roles["VIEWER"] < roles["OPERATOR"] < roles["ADMIN"], roles
+
+
+@prueba("OAuth")
+def oauth_proveedores():
+    """GET /api/auth/providers es público y lista los proveedores configurados"""
+    lista = esperado(http("GET", "/api/auth/providers"), 200).json
+    assert isinstance(lista, list) and all({"id", "nombre", "url"} <= set(p) for p in lista), lista
+    C["proveedores"] = [p["id"] for p in lista]
+
+
+@prueba("OAuth")
+def oauth_proveedor_desconocido():
+    """Login con un proveedor inexistente → vuelve al frontend con error"""
+    r = http_sin_seguir("/api/auth/login/inexistente")
+    assert r.estado == 302 and "/login/callback?error=proveedor-desconocido" in r.cabeceras["location"], r.cabeceras
+
+
+@prueba("OAuth")
+def oauth_redireccion_al_proveedor():
+    """Login con cada proveedor configurado → 302 al proveedor con state, PKCE y cookie"""
+    if not C.get("proveedores"):
+        print("      (sin proveedores configurados: se omite)")
+        return
+    for proveedor in C["proveedores"]:
+        r = http_sin_seguir(f"/api/auth/login/{proveedor}")
+        destino = r.cabeceras.get("location", "")
+        assert r.estado == 302 and "state=" in destino and "code_challenge=" in destino, (proveedor, r.cabeceras)
+        assert "swmatrc_oauth_state=" in r.cabeceras.get("set-cookie", ""), r.cabeceras
+        # El callback sin la cookie del navegador que inició el flujo se rechaza (CSRF de login).
+        estado = destino.split("state=")[1].split("&")[0]
+        r2 = http_sin_seguir(f"/api/auth/callback/{proveedor}?code=x&state={estado}")
+        assert r2.estado == 302 and "error=solicitud-invalida" in r2.cabeceras["location"], r2.cabeceras
+
+
+@prueba("OAuth")
+def oauth_codigo_invalido():
+    """Canjear un código inventado → 401"""
+    esperado(http("POST", "/api/auth/exchange", cuerpo={"codigo": "inventado"}), 401)
 
 
 @prueba("Auth")
@@ -232,11 +291,11 @@ def auth_crear_usuarios():
     for rol in ("Operador", "Consulta"):
         email = f"e2e.{rol.lower()}.{SUFIJO}@ejemplo.org"
         u = esperado(http("POST", "/api/auth/users", token=C["admin"], cuerpo={
-            "nombreCompleto": f"E2E {rol}", "email": email.upper(), "password": "Prueba.2026", "rol": rol}), 201).json
+            "nombreCompleto": f"E2E {rol}", "email": email.upper(), "password": "Prueba.2026", "rol": CODIGO_ROL[rol]}), 201).json
         assert u["email"] == email, "el correo se guarda en minúsculas"
         C[f"id_{rol}"], C[f"email_{rol}"] = u["id"], email
     esperado(http("POST", "/api/auth/users", token=C["admin"], cuerpo={
-        "nombreCompleto": "x", "email": C["email_Operador"], "password": "Prueba.2026", "rol": "Consulta"}), 409)
+        "nombreCompleto": "x", "email": C["email_Operador"], "password": "Prueba.2026", "rol": "VIEWER"}), 409)
     C["operador"] = token_de(C["email_Operador"], "Prueba.2026")
     C["consulta"] = token_de(C["email_Consulta"], "Prueba.2026")
 
@@ -261,10 +320,10 @@ def auth_cambio_rol_revoca_sesion():
     """Cambiar el rol cierra las sesiones abiertas del usuario"""
     viejo = token_de(C["email_Consulta"], "Prueba.2026")
     esperado(http("PUT", f"/api/auth/users/{C['id_Consulta']}", token=C["admin"],
-                  cuerpo={"nombreCompleto": "E2E Consulta", "rol": "Operador"}), 200)
+                  cuerpo={"nombreCompleto": "E2E Consulta", "rol": "OPERATOR"}), 200)
     esperado(http("GET", "/api/auth/me", token=viejo), 401)
     esperado(http("PUT", f"/api/auth/users/{C['id_Consulta']}", token=C["admin"],
-                  cuerpo={"nombreCompleto": "E2E Consulta", "rol": "Consulta"}), 200)
+                  cuerpo={"nombreCompleto": "E2E Consulta", "rol": "VIEWER"}), 200)
     C["consulta"] = token_de(C["email_Consulta"], "Prueba.2026")
 
 
@@ -713,7 +772,9 @@ def aud_filtros_y_catalogos():
 @prueba("Gateway")
 def gw_limite_login():
     """Límite de 10 intentos de login por minuto → 429 (va al final: bloquea el login un minuto)"""
-    estados = [http("POST", "/api/auth/login", cuerpo={"email": "nadie@ejemplo.org", "password": "xxxxxxx"}).estado for _ in range(12)]
+    # La ventana es fija (1 min): si la ráfaga cae justo en el cambio de ventana, 12 intentos
+    # podrían repartirse sin pasar de 10 en ninguna. Con 22, al menos una recibe 11.
+    estados = [http("POST", "/api/auth/login", cuerpo={"email": "nadie@ejemplo.org", "password": "xxxxxxx"}).estado for _ in range(22)]
     assert 429 in estados, estados
 
 

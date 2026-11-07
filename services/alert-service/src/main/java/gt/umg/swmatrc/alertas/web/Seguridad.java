@@ -40,9 +40,11 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
  * de los controladores quedan como segunda barrera.
  *
  * <p>Del token se derivan autoridades: {@code AUD_WEB} o {@code AUD_INTERNA} según la
- * audiencia, y {@code PERM_<permiso>} por cada permiso. Las rutas {@code /api} exigen token de
- * usuario; las {@code /internal}, token de servicio. Un tipo de token nunca sirve donde se
- * espera el otro.
+ * audiencia, {@code ROLE_<rol>} por cada elemento del claim {@code roles} (ADMIN, OPERATOR,
+ * VIEWER o SERVICE) y {@code PERM_<permiso>} por cada permiso. Las rutas {@code /api} exigen
+ * token de usuario con un rol del sistema; las {@code /internal}, token de servicio. Un tipo
+ * de token nunca sirve donde se espera el otro. Administrar reglas y umbrales exige además el
+ * rol ADMIN (RNF-OAUTH-03).
  */
 @Configuration
 @EnableMethodSecurity
@@ -50,6 +52,8 @@ public class Seguridad {
 
     public static final String AUD_WEB = "AUD_WEB";
     public static final String AUD_INTERNA = "AUD_INTERNA";
+    public static final String ROL_ADMIN = "ROLE_ADMIN";
+    private static final List<String> ROLES_USUARIO = List.of("ADMIN", "OPERATOR", "VIEWER");
 
     @Bean
     JwtDecoder decodificador(Propiedades propiedades) {
@@ -75,12 +79,12 @@ public class Seguridad {
         conversor.setPrincipalClaimName("sub");
         conversor.setJwtGrantedAuthoritiesConverter(token -> autoridades(token, propiedades.jwt()));
 
-        var soloServicios = ambas(AUD_INTERNA, "PERM_interno");
+        var soloServicios = todas(AUD_INTERNA, "ROLE_SERVICE", "PERM_interno");
         // Los permisos de escritura se comprueban aquí, antes de leer el cuerpo: si no, un
         // usuario sin permiso que manda datos inválidos recibiría 400 en lugar de 403.
-        var atender = ambas(AUD_WEB, "PERM_alertas:atender");
-        var configurar = ambas(AUD_WEB, "PERM_reglas:editar");
-        var leer = ambas(AUD_WEB, "PERM_alertas:leer");
+        var atender = todas(AUD_WEB, "ROLE_USUARIO", "PERM_alertas:atender");
+        var configurar = todas(AUD_WEB, ROL_ADMIN, "PERM_reglas:editar");
+        var leer = todas(AUD_WEB, "ROLE_USUARIO", "PERM_alertas:leer");
 
         http
                 .csrf(c -> c.disable())
@@ -110,9 +114,11 @@ public class Seguridad {
         return http.build();
     }
 
-    private static AuthorizationManager<RequestAuthorizationContext> ambas(String a, String b) {
-        return AuthorizationManagers.allOf(
-                AuthorityAuthorizationManager.hasAuthority(a), AuthorityAuthorizationManager.hasAuthority(b));
+    @SuppressWarnings("unchecked")
+    private static AuthorizationManager<RequestAuthorizationContext> todas(String... autoridades) {
+        AuthorizationManager<RequestAuthorizationContext>[] gestores = new AuthorizationManager[autoridades.length];
+        for (int i = 0; i < autoridades.length; i++) gestores[i] = AuthorityAuthorizationManager.hasAuthority(autoridades[i]);
+        return AuthorizationManagers.allOf(gestores);
     }
 
     private static Collection<GrantedAuthority> autoridades(Jwt token, Propiedades.Jwt jwt) {
@@ -120,6 +126,12 @@ public class Seguridad {
         List<String> aud = token.getAudience() == null ? List.of() : token.getAudience();
         if (aud.contains(jwt.audiencia())) lista.add(new SimpleGrantedAuthority(AUD_WEB));
         if (aud.contains(jwt.audienciaInterna())) lista.add(new SimpleGrantedAuthority(AUD_INTERNA));
+        List<String> roles = token.getClaimAsStringList("roles");
+        if (roles != null) {
+            roles.forEach(r -> lista.add(new SimpleGrantedAuthority("ROLE_" + r)));
+            // Marca común a los tres roles de usuario: un token sin rol del sistema no entra a /api.
+            if (roles.stream().anyMatch(ROLES_USUARIO::contains)) lista.add(new SimpleGrantedAuthority("ROLE_USUARIO"));
+        }
         List<String> permisos = token.getClaimAsStringList("permissions");
         if (permisos != null) permisos.forEach(p -> lista.add(new SimpleGrantedAuthority("PERM_" + p)));
         return lista;

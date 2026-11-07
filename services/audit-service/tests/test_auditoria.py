@@ -17,7 +17,7 @@ EVENTO = {
 
 
 def token_servicio(emitir):
-    return emitir(audiencia="swmatrc-internal", permisos=["interno"], rol="Servicio", sub="svc:auth-service")
+    return emitir(audiencia="swmatrc-internal", permisos=["interno"], roles=["SERVICE"], sub="svc:auth-service")
 
 
 def cabecera(token):
@@ -88,7 +88,7 @@ def test_un_administrador_consulta_la_bitacora_paginada(cliente, emitir):
 
 
 def test_sin_permiso_de_auditoria_no_se_consulta(cliente, emitir):
-    respuesta = cliente.get("/api/audit/events", headers=cabecera(emitir(permisos=["alertas:leer"], rol="Operador")))
+    respuesta = cliente.get("/api/audit/events", headers=cabecera(emitir(permisos=["alertas:leer"], roles=["OPERATOR"])))
 
     assert respuesta.status_code == 403
 
@@ -164,3 +164,19 @@ def test_el_jwks_se_descarga_una_vez_y_se_reutiliza(cliente, emitir, auth_simula
 
 def test_salud(cliente):
     assert cliente.get("/health/live").json() == {"status": "ok"}
+
+
+def test_auditoria_exige_rol_admin_aunque_tenga_el_permiso(cliente, emitir):
+    """RNF-OAUTH-03: la bitácora es una ruta administrativa; el permiso solo no basta."""
+    token = emitir(permisos=["auditoria:leer"], roles=["OPERATOR"])
+    assert cliente.get("/api/audit/events", headers=cabecera(token)).status_code == 403
+
+
+def test_token_sin_rol_del_sistema_se_rechaza(cliente, emitir):
+    token = emitir(permisos=["auditoria:leer"], roles=[])
+    assert cliente.get("/api/audit/events", headers=cabecera(token)).status_code == 401
+
+
+def test_token_de_servicio_exige_rol_service(cliente, emitir):
+    token = emitir(audiencia="swmatrc-internal", permisos=["interno"], roles=["ADMIN"], sub="svc:x")
+    assert cliente.post("/internal/events", json=EVENTO, headers=cabecera(token)).status_code == 403
