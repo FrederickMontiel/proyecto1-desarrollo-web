@@ -26,6 +26,6 @@ services:
     ports:
       - "127.0.0.1:37017:27017"
 
-  gateway:
+  api-gateway:
     environment:
       ASPNETCORE_ENVIRONMENT: Development

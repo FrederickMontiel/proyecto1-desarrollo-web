@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/api-gateway/">
+    <Project Path="api-gateway/SWMatrc.Gateway/SWMatrc.Gateway.csproj" />
+  </Folder>
   <Folder Name="/community-service/" />
   <Folder Name="/community-service/src/">
     <Project Path="community-service/src/SWMatrc.Community/SWMatrc.Community.csproj" />
