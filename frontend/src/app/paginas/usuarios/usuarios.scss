@@ -42,19 +42,19 @@
 }
 
 /* Cada rol tiene su color para que la jerarquía se lea de un vistazo. */
-.rol--administrador {
+.rol--admin {
   color: var(--naranja);
   border-color: var(--naranja);
   background: var(--naranja-tenue);
 }
 
-.rol--operador {
+.rol--operator {
   color: var(--primario);
   border-color: var(--primario);
   background: var(--primario-tenue);
 }
 
-.rol--consulta {
+.rol--viewer {
   color: var(--texto-suave);
   border-color: var(--borde);
   background: var(--fondo-alt);

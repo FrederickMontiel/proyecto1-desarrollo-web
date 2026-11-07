@@ -4,6 +4,10 @@
   min-height: 100vh;
 }
 
+.acceso--centrado {
+  grid-template-columns: 1fr;
+}
+
 /* --------------------------------------------------------------- Panel izquierdo */
 
 .acceso__presentacion {
@@ -141,4 +145,59 @@
   .presentacion__contenido h1 { font-size: 2rem; }
   .presentacion__logo { font-size: 2.5rem; }
   .presentacion__niveles { display: none; }
+}
+
+/* ------------------------------------------------- Proveedores externos (OAuth) */
+
+.externos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+}
+
+.externos__separador {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.externos__separador::before,
+.externos__separador::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--borde);
+}
+
+.externos__boton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  font-weight: 600;
+}
+
+.externos__icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: var(--fondo-alt);
+}
+
+.externos__boton--google .externos__icono {
+  color: #4285f4;
+  background: #fff;
+}
+
+.externos__boton--github .externos__icono {
+  color: #fff;
+  background: #24292f;
 }

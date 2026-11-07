@@ -28,7 +28,8 @@ export type EstadoSensor = 'Inactivo' | 'Activo' | 'SinSenal';
 
 export type EstadoAlerta = 'Activa' | 'Atendida' | 'Cerrada';
 
-export type RolUsuario = 'Consulta' | 'Operador' | 'Administrador';
+/** Roles de la Fase 4 (claim `roles` del JWT). En pantalla se muestran en español. */
+export type RolUsuario = 'VIEWER' | 'OPERATOR' | 'ADMIN';
 
 export interface Usuario {
   id: number;
@@ -39,6 +40,8 @@ export interface Usuario {
   /** Permisos efectivos del rol (`reportes:descargar`, `sensores:operar`…). */
   permisos: string[];
   activo: boolean;
+  /** Foto que entrega Google o GitHub; nula en cuentas locales. */
+  fotoUrl?: string | null;
   ultimoAcceso: string | null;
   fechaCreacion: string;
 }
@@ -61,6 +64,15 @@ export interface Sesion {
   token: string;
   expira: string;
   usuario: Usuario;
+  /** Con qué se inició la sesión: `local`, `google`, `github`… */
+  proveedor?: string;
+}
+
+/** Proveedor de identidad externo habilitado en el Auth Service. */
+export interface ProveedorExterno {
+  id: string;
+  nombre: string;
+  url: string;
 }
 
 export interface Comunidad {
@@ -465,15 +477,15 @@ export const FENOMENOS: Record<TipoFenomeno, { etiqueta: string; icono: string }
 
 /** Descripción de cada rol, para la pantalla de administración de cuentas. */
 export const ROLES: Record<RolUsuario, { etiqueta: string; descripcion: string }> = {
-  Consulta: {
+  VIEWER: {
     etiqueta: 'Consulta',
     descripcion: 'Solo lectura del tablero y del historial.',
   },
-  Operador: {
+  OPERATOR: {
     etiqueta: 'Operador',
     descripcion: 'Atiende y cierra alertas, activa sensores y registra lecturas manuales.',
   },
-  Administrador: {
+  ADMIN: {
     etiqueta: 'Administrador',
     descripcion: 'Control total: comunidades, sensores, reglas, cuentas, bitácora y reinicio.',
   },

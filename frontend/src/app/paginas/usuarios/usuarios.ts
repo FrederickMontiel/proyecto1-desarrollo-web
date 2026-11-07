@@ -55,7 +55,7 @@ export class Usuarios implements OnInit {
     nombreCompleto: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(8)]],
-    rol: ['Consulta' as RolUsuario, Validators.required],
+    rol: ['VIEWER' as RolUsuario, Validators.required],
   });
 
   /**
@@ -63,7 +63,7 @@ export class Usuarios implements OnInit {
    * avisar en la interfaz antes de que la API rechace la operación.
    */
   protected readonly administradoresActivos = computed(
-    () => this.todos().filter((u) => u.rol === 'Administrador' && u.activo).length,
+    () => this.todos().filter((u) => u.rol === 'ADMIN' && u.activo).length,
   );
 
   async ngOnInit(): Promise<void> {
@@ -106,7 +106,7 @@ export class Usuarios implements OnInit {
 
   /** El último administrador activo no puede quedar sin rol ni deshabilitado. */
   protected esUltimoAdministrador(usuario: Usuario): boolean {
-    return usuario.rol === 'Administrador' && usuario.activo && this.administradoresActivos() === 1;
+    return usuario.rol === 'ADMIN' && usuario.activo && this.administradoresActivos() === 1;
   }
 
   protected descripcionRol(rol: RolUsuario): string {
@@ -117,7 +117,7 @@ export class Usuarios implements OnInit {
 
   protected abrirAlta(): void {
     this.editando.set(null);
-    this.formulario.reset({ nombreCompleto: '', email: '', password: '', rol: 'Consulta' });
+    this.formulario.reset({ nombreCompleto: '', email: '', password: '', rol: 'VIEWER' });
 
     this.formulario.controls.email.enable();
     this.formulario.controls.password.enable();
@@ -169,7 +169,7 @@ export class Usuarios implements OnInit {
           }),
         );
 
-        this.notificaciones.informar('Cuenta actualizada', `${datos.email} quedó como ${datos.rol}.`);
+        this.notificaciones.informar('Cuenta actualizada', `${datos.email} quedó como ${ROLES[datos.rol].etiqueta}.`);
       } else {
         await firstValueFrom(
           this.api.crearUsuario({

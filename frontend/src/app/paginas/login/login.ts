@@ -1,6 +1,7 @@
-import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, ChangeDetectionStrategy, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
+import { ProveedorExterno } from '../../core/modelos/modelos';
 import { Autenticacion } from '../../core/servicios/autenticacion';
 import { Notificaciones } from '../../core/servicios/notificaciones';
 
@@ -11,7 +12,7 @@ import { Notificaciones } from '../../core/servicios/notificaciones';
   changeDetection: ChangeDetectionStrategy.Eager,
   styleUrl: './login.scss',
 })
-export class Login {
+export class Login implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(Autenticacion);
   private readonly router = inject(Router);
@@ -20,6 +21,24 @@ export class Login {
 
   protected readonly enviando = signal(false);
   protected readonly error = signal<string | null>(null);
+
+  /** Google, GitHub u otros: solo aparecen los que el Auth Service tiene configurados. */
+  protected readonly proveedores = signal<ProveedorExterno[]>([]);
+  protected readonly redirigiendo = signal<string | null>(null);
+
+  async ngOnInit(): Promise<void> {
+    this.proveedores.set(await this.auth.proveedores());
+  }
+
+  protected entrarCon(proveedor: ProveedorExterno): void {
+    this.redirigiendo.set(proveedor.id);
+    this.auth.iniciarConProveedor(proveedor, this.ruta.snapshot.queryParamMap.get('destino') ?? undefined);
+  }
+
+  /** Icono de cada proveedor conocido; el resto usa uno genérico. */
+  protected icono(id: string): string {
+    return ({ google: 'G', github: '🐙', microsoft: '⊞' } as Record<string, string>)[id] ?? '🔑';
+  }
 
   protected readonly formulario = this.fb.nonNullable.group({
     email: ['', [Validators.required, Validators.email]],

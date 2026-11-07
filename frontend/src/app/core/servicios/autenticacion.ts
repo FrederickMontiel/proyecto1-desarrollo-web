@@ -3,9 +3,10 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { RolUsuario, Sesion, Usuario } from '../modelos/modelos';
+import { ProveedorExterno, RolUsuario, Sesion, Usuario } from '../modelos/modelos';
 
 const CLAVE_SESION = 'swmatrc.sesion';
+const CLAVE_DESTINO = 'swmatrc.destino';
 
 /**
  * Estado de sesión de la aplicación. Conserva el token en `localStorage` para que una
@@ -26,11 +27,11 @@ export class Autenticacion {
   /** Puede operar sobre sensores y reconocer alertas. */
   readonly puedeOperar = computed(() => {
     const rol = this.rol();
-    return rol === 'Operador' || rol === 'Administrador';
+    return rol === 'OPERATOR' || rol === 'ADMIN';
   });
 
   /** Puede administrar la red, los usuarios y reiniciar el sistema. */
-  readonly puedeAdministrar = computed(() => this.rol() === 'Administrador');
+  readonly puedeAdministrar = computed(() => this.rol() === 'ADMIN');
 
   /** Permisos efectivos que emitió el Auth Service para la sesión. */
   readonly permisos = computed<string[]>(() => this.sesion()?.usuario.permisos ?? []);
@@ -53,7 +54,41 @@ export class Autenticacion {
     const sesion = await firstValueFrom(
       this.http.post<Sesion>(`${environment.urlApi}/auth/login`, { email, password }),
     );
+    this.guardar(sesion);
+  }
 
+  /** Proveedores externos habilitados (Google, GitHub…). Si la API no responde, ninguno. */
+  async proveedores(): Promise<ProveedorExterno[]> {
+    try {
+      return await firstValueFrom(this.http.get<ProveedorExterno[]>(`${environment.urlApi}/auth/providers`));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Inicia OAuth 2.0 / OpenID Connect: el navegador sale de la aplicación hacia el Auth
+   * Service, que lo redirige al proveedor. Vuelve a /login/callback con un código.
+   */
+  iniciarConProveedor(proveedor: ProveedorExterno, destino?: string): void {
+    if (destino) sessionStorage.setItem(CLAVE_DESTINO, destino);
+    window.location.assign(proveedor.url);
+  }
+
+  /** Canjea el código de un solo uso del callback por el JWT del sistema. */
+  async canjearCodigo(codigo: string): Promise<string> {
+    const sesion = await firstValueFrom(
+      this.http.post<Sesion>(`${environment.urlApi}/auth/exchange`, { codigo }),
+    );
+    this.guardar(sesion);
+
+    const destino = sessionStorage.getItem(CLAVE_DESTINO) ?? '/dashboard';
+    sessionStorage.removeItem(CLAVE_DESTINO);
+    // Solo rutas internas: un destino manipulado no puede sacar al usuario del sitio.
+    return destino.startsWith('/') && !destino.startsWith('//') ? destino : '/dashboard';
+  }
+
+  private guardar(sesion: Sesion): void {
     localStorage.setItem(CLAVE_SESION, JSON.stringify(sesion));
     this.sesion.set(sesion);
   }

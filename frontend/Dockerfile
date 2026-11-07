@@ -22,7 +22,12 @@ RUN npm run build
 # --------------------------------------------------------------------------------------
 FROM nginx:1.27-alpine AS final
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Plantilla: el entrypoint de nginx la procesa con envsubst y deja el resultado en conf.d.
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+
+# NGINX_ENTRYPOINT_LOCAL_RESOLVERS hace que el entrypoint lea los DNS de /etc/resolv.conf.
+# GATEWAY_URL: "api-gateway" en Compose; en Kubernetes, el nombre completo del Service.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1     GATEWAY_URL=http://api-gateway:8080
 COPY --from=build /origen/dist/swmatrc-web/browser /usr/share/nginx/html
 
 EXPOSE 80

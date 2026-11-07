@@ -58,6 +58,26 @@
         {{ enviando() ? 'Verificando…' : 'Entrar' }}
       </button>
 
+      @if (proveedores().length > 0) {
+        <div class="externos">
+          <span class="externos__separador texto-tenue">o continúe con</span>
+          @for (proveedor of proveedores(); track proveedor.id) {
+            <button
+              class="boton externos__boton"
+              [class]="'externos__boton--' + proveedor.id"
+              type="button"
+              [disabled]="redirigiendo() !== null"
+              (click)="entrarCon(proveedor)">
+              <span class="externos__icono" aria-hidden="true">{{ icono(proveedor.id) }}</span>
+              {{ redirigiendo() === proveedor.id ? 'Redirigiendo…' : 'Continuar con ' + proveedor.nombre }}
+            </button>
+          }
+          <small class="texto-tenue">
+            Si es su primer ingreso se crea una cuenta de <strong>Consulta</strong>; un administrador puede ampliar su rol.
+          </small>
+        </div>
+      }
+
       <div class="demo">
         <span class="texto-tenue">Cuentas de demostración</span>
         <div class="demo__botones">

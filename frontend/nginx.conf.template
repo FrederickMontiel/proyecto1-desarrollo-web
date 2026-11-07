@@ -1,7 +1,13 @@
 # --------------------------------------------------------------------------------------
-# nginx sirve la SPA y hace de proxy inverso hacia el API Gateway dentro de la red de Docker.
-# Un solo origen para todo: no hay CORS que configurar y el WebSocket viaja por el mismo
-# puerto que el resto del tráfico.
+# nginx sirve la SPA y hace de proxy inverso hacia el API Gateway. Un solo origen para todo:
+# no hay CORS que configurar y el WebSocket viaja por el mismo puerto que el resto.
+#
+# Es una plantilla: al arrancar, la imagen oficial de nginx sustituye ${GATEWAY_URL} y
+# ${NGINX_LOCAL_RESOLVERS} (este último lo toma de /etc/resolv.conf: el DNS de Docker en
+# Compose, CoreDNS en Kubernetes). Las variables propias de nginx ($host…) no se tocan.
+#
+# En Kubernetes el Ingress ya manda /api y /hubs directo al gateway; este proxy queda para
+# Compose y para quien entre al Service web sin pasar por el Ingress.
 # --------------------------------------------------------------------------------------
 
 # El encabezado Connection de una petición de WebSocket vale "upgrade"; en el resto viene
@@ -16,11 +22,11 @@ server {
     listen 80;
     server_name _;
 
-    # El nombre "gateway" se resuelve con el DNS interno de Docker en cada petición (caché de
-    # 10 s), no una sola vez al arrancar: si el contenedor del gateway se recrea y cambia de
-    # IP, nginx lo sigue encontrando en lugar de responder 502 hasta que alguien lo reinicie.
-    resolver 127.0.0.11 valid=10s ipv6=off;
-    set $gateway http://gateway:8080;
+    # El nombre del gateway se resuelve en cada petición (caché de 10 s), no una sola vez al
+    # arrancar: si el gateway se recrea y cambia de IP, nginx lo sigue encontrando en lugar
+    # de responder 502 hasta que alguien lo reinicie.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+    set $gateway ${GATEWAY_URL};
 
     root /usr/share/nginx/html;
     index index.html;
@@ -74,6 +80,12 @@ server {
 
         # El búfer retendría los mensajes: en un canal de alertas hay que entregarlos ya.
         proxy_buffering off;
+    }
+
+    # --- Rutas internas de los microservicios ---
+    # Nunca se exponen. Sin esto, el enrutamiento de Angular respondería index.html (200).
+    location ^~ /internal/ {
+        return 404;
     }
 
     # --- Recursos con huella de contenido ---

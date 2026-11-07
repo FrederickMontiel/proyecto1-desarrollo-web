@@ -7,6 +7,12 @@ import { guardaAdministrador, guardaAnonimo, guardaAutenticado, guardaPermiso } 
  */
 export const routes: Routes = [
   {
+    // Vuelta de OAuth (Google, GitHub): canjea el código de un solo uso por el JWT.
+    path: 'login/callback',
+    title: 'Iniciando sesión — SWMATRC',
+    loadComponent: () => import('./paginas/login/callback').then((m) => m.LoginCallback),
+  },
+  {
     path: 'login',
     canActivate: [guardaAnonimo],
     title: 'Acceso — SWMATRC',
